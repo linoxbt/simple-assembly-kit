@@ -1,5 +1,6 @@
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
+import { useNavigate, useLocation } from "react-router-dom";
 import { formatUsd } from "@/utils/format";
 import aurumxLogo from "@/assets/aurumx-logo.png";
 
