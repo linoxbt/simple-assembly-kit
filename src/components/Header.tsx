@@ -13,7 +13,7 @@ interface HeaderProps {
 const Header = ({ xauPrice, priceSource, activeTab, onTabChange }: HeaderProps) => {
   const { connected, publicKey, disconnect } = useWallet();
   const { setVisible } = useWalletModal();
-  const tabs = ["VAULT", "ADMIN", "EXPLORER"];
+  const tabs = ["VAULT", "ADMIN", "EXPLORER", "FAUCET"];
 
   const handleWalletClick = () => {
     if (connected) {
