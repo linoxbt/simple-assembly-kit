@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
 import MetricCard from "@/components/MetricCard";
 import RatioGauge from "@/components/RatioGauge";
 import ComplianceStatusPanel from "@/components/ComplianceStatusPanel";
@@ -7,6 +8,7 @@ import KytEventsPanel from "@/components/KytEventsPanel";
 import { VaultState, PriceData } from "@/hooks/useVault";
 import { formatUsd, formatOz, formatRatio } from "@/utils/format";
 import { TRAVEL_RULE_THRESHOLD } from "@/utils/constants";
+import { depositCollateral, mintXusd, burnXusd } from "@/services/anchorProgram";
 import { toast } from "sonner";
 
 interface VaultDashboardProps {
@@ -15,30 +17,96 @@ interface VaultDashboardProps {
 }
 
 const VaultDashboard = ({ vault, prices }: VaultDashboardProps) => {
+  const { publicKey, signTransaction, connected } = useWallet();
   const [depositOz, setDepositOz] = useState("");
   const [mintUsd, setMintUsd] = useState("");
   const [burnUsd, setBurnUsd] = useState("");
+  const [loading, setLoading] = useState<string | null>(null);
 
   const mintAmount = parseFloat(mintUsd) || 0;
   const showTravelRule = mintAmount >= TRAVEL_RULE_THRESHOLD;
-
   const xagPrice = prices.find((p) => p.symbol === "XAG/USD")?.price ?? 0;
 
-  const handleDeposit = () => {
-    toast.success(`Depositing ${depositOz} oz XAU collateral`);
-    setDepositOz("");
+  const handleDeposit = async () => {
+    if (!connected || !publicKey || !signTransaction) {
+      toast.error("Connect your wallet first");
+      return;
+    }
+    const oz = parseFloat(depositOz);
+    if (!oz || oz <= 0) return;
+
+    setLoading("deposit");
+    try {
+      const result = await depositCollateral(publicKey, oz, signTransaction);
+      if (result.success) {
+        toast.success(`Deposited ${oz} oz XAU`, {
+          description: `TX: ${result.txSignature?.slice(0, 12)}…`,
+        });
+        setDepositOz("");
+      }
+    } catch (err: any) {
+      toast.error("Deposit failed", { description: err.message });
+    } finally {
+      setLoading(null);
+    }
   };
-  const handleMint = () => {
-    toast.success(`Minting ${formatUsd(mintAmount)} xUSD`);
-    setMintUsd("");
+
+  const handleMint = async () => {
+    if (!connected || !publicKey || !signTransaction) {
+      toast.error("Connect your wallet first");
+      return;
+    }
+    if (!mintAmount || mintAmount <= 0) return;
+
+    setLoading("mint");
+    try {
+      const result = await mintXusd(publicKey, mintAmount, signTransaction);
+      if (result.success) {
+        toast.success(`Minted ${formatUsd(mintAmount)} xUSD`, {
+          description: `TX: ${result.txSignature?.slice(0, 12)}…`,
+        });
+        setMintUsd("");
+      }
+    } catch (err: any) {
+      toast.error("Mint failed", { description: err.message });
+    } finally {
+      setLoading(null);
+    }
   };
-  const handleBurn = () => {
-    toast.success(`Burning ${burnUsd} xUSD & reclaiming collateral`);
-    setBurnUsd("");
+
+  const handleBurn = async () => {
+    if (!connected || !publicKey || !signTransaction) {
+      toast.error("Connect your wallet first");
+      return;
+    }
+    const usd = parseFloat(burnUsd);
+    if (!usd || usd <= 0) return;
+
+    setLoading("burn");
+    try {
+      const result = await burnXusd(publicKey, usd, signTransaction);
+      if (result.success) {
+        toast.success(`Burned ${formatUsd(usd)} xUSD`, {
+          description: `TX: ${result.txSignature?.slice(0, 12)}…`,
+        });
+        setBurnUsd("");
+      }
+    } catch (err: any) {
+      toast.error("Burn failed", { description: err.message });
+    } finally {
+      setLoading(null);
+    }
   };
 
   return (
     <div className="space-y-4">
+      {/* Wallet Banner */}
+      {!connected && (
+        <div className="text-xs tracking-wider text-center py-2 rounded border border-warning text-warning bg-warning/5">
+          ⚠ CONNECT WALLET TO INTERACT WITH VAULT
+        </div>
+      )}
+
       {/* KYC Banner */}
       <div className={`text-xs tracking-wider text-center py-2 rounded border ${
         vault.isKycVerified
@@ -63,7 +131,6 @@ const VaultDashboard = ({ vault, prices }: VaultDashboardProps) => {
 
       {/* Main Grid */}
       <div className="grid lg:grid-cols-3 gap-4">
-        {/* Left Column — Actions */}
         <div className="lg:col-span-2 space-y-4">
           <RatioGauge ratio={vault.collateralRatio} health={vault.health} />
 
@@ -78,8 +145,12 @@ const VaultDashboard = ({ vault, prices }: VaultDashboardProps) => {
                 onChange={(e) => setDepositOz(e.target.value)}
                 className="flex-1 bg-surface border border-card-border rounded px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
               />
-              <button onClick={handleDeposit} className="px-6 py-2 text-xs border border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors rounded tracking-wider font-medium">
-                DEPOSIT →
+              <button
+                onClick={handleDeposit}
+                disabled={loading === "deposit" || !connected}
+                className="px-6 py-2 text-xs border border-primary text-primary hover:bg-primary hover:text-primary-foreground disabled:opacity-30 transition-colors rounded tracking-wider font-medium"
+              >
+                {loading === "deposit" ? "SENDING…" : "DEPOSIT →"}
               </button>
             </div>
           </div>
@@ -95,13 +166,17 @@ const VaultDashboard = ({ vault, prices }: VaultDashboardProps) => {
                 onChange={(e) => setMintUsd(e.target.value)}
                 className="flex-1 bg-surface border border-card-border rounded px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
               />
-              <button onClick={handleMint} disabled={showTravelRule} className="px-6 py-2 text-xs border border-primary text-primary hover:bg-primary hover:text-primary-foreground disabled:opacity-30 transition-colors rounded tracking-wider font-medium">
-                MINT →
+              <button
+                onClick={handleMint}
+                disabled={showTravelRule || loading === "mint" || !connected}
+                className="px-6 py-2 text-xs border border-primary text-primary hover:bg-primary hover:text-primary-foreground disabled:opacity-30 transition-colors rounded tracking-wider font-medium"
+              >
+                {loading === "mint" ? "SENDING…" : "MINT →"}
               </button>
             </div>
             {showTravelRule && (
               <div className="mt-3">
-                <TravelRulePanel amount={mintAmount} onSubmit={() => { handleMint(); }} />
+                <TravelRulePanel amount={mintAmount} onSubmit={handleMint} />
               </div>
             )}
           </div>
@@ -117,14 +192,18 @@ const VaultDashboard = ({ vault, prices }: VaultDashboardProps) => {
                 onChange={(e) => setBurnUsd(e.target.value)}
                 className="flex-1 bg-surface border border-card-border rounded px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
               />
-              <button onClick={handleBurn} className="px-6 py-2 text-xs border border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground transition-colors rounded tracking-wider font-medium">
-                BURN →
+              <button
+                onClick={handleBurn}
+                disabled={loading === "burn" || !connected}
+                className="px-6 py-2 text-xs border border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground disabled:opacity-30 transition-colors rounded tracking-wider font-medium"
+              >
+                {loading === "burn" ? "SENDING…" : "BURN →"}
               </button>
             </div>
           </div>
         </div>
 
-        {/* Right Column — Status */}
+        {/* Right Column */}
         <div className="space-y-4">
           <ComplianceStatusPanel
             isKycVerified={vault.isKycVerified}

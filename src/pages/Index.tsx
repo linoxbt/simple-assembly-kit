@@ -8,7 +8,7 @@ import Footer from "@/components/Footer";
 import { useVault } from "@/hooks/useVault";
 
 const Index = () => {
-  const { vault, prices, walletConnected, setWalletConnected } = useVault();
+  const { vault, prices } = useVault();
   const [activeTab, setActiveTab] = useState("vault");
 
   return (
@@ -20,8 +20,6 @@ const Index = () => {
       <Header
         xauPrice={vault.xauPriceUsd}
         priceSource={vault.priceFromSix ? "SIX BFI" : "Pyth"}
-        walletConnected={walletConnected}
-        onConnectWallet={() => setWalletConnected(!walletConnected)}
         activeTab={activeTab}
         onTabChange={setActiveTab}
       />
