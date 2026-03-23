@@ -14,6 +14,8 @@ interface HeaderProps {
 const Header = ({ xauPrice, priceSource, activeTab, onTabChange }: HeaderProps) => {
   const { connected, publicKey, disconnect } = useWallet();
   const { setVisible } = useWalletModal();
+  const navigate = useNavigate();
+  const location = useLocation();
   const tabs = ["VAULT", "ADMIN", "EXPLORER", "FAUCET"];
 
   const handleWalletClick = () => {
