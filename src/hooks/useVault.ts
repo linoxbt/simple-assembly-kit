@@ -23,14 +23,6 @@ export interface PriceData {
   source: string;
 }
 
-// Mock data for demo - replace with real Solana program calls after deploy
-const MOCK_PRICES: PriceData[] = [
-  { symbol: "XAU/USD", price: 2345.67, source: "SIX BFI" },
-  { symbol: "XAG/USD", price: 29.14, source: "SIX BFI" },
-  { symbol: "XPT/USD", price: 982.30, source: "SIX BFI" },
-  { symbol: "XPD/USD", price: 1124.50, source: "SIX BFI" },
-];
-
 const MOCK_VAULT: VaultState = {
   collateralOz: 5.0,
   collateralUsdValue: 11728.35,
@@ -47,11 +39,24 @@ const MOCK_VAULT: VaultState = {
   vaultExists: true,
 };
 
-export function useVault() {
-  const [vault] = useState<VaultState>(MOCK_VAULT);
-  const [prices] = useState<PriceData[]>(MOCK_PRICES);
+export function useVault(xauPrice?: number) {
+  const [vault, setVault] = useState<VaultState>(() => {
+    if (xauPrice && xauPrice > 0) {
+      const collateralUsdValue = MOCK_VAULT.collateralOz * xauPrice;
+      const collateralRatio = (collateralUsdValue / MOCK_VAULT.xusdDebt) * 100;
+      const maxMintable = (collateralUsdValue / 1.5) - MOCK_VAULT.xusdDebt;
+      return {
+        ...MOCK_VAULT,
+        xauPriceUsd: xauPrice,
+        collateralUsdValue,
+        collateralRatio,
+        maxMintable: Math.max(0, maxMintable),
+      };
+    }
+    return MOCK_VAULT;
+  });
   const [loading] = useState(false);
   const [walletConnected, setWalletConnected] = useState(false);
 
-  return { vault, prices, loading, walletConnected, setWalletConnected, refresh: () => {} };
+  return { vault, loading, walletConnected, setWalletConnected, refresh: () => {} };
 }

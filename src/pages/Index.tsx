@@ -6,9 +6,12 @@ import AdminPanel from "@/components/AdminPanel";
 import ExplorerPanel from "@/components/ExplorerPanel";
 import Footer from "@/components/Footer";
 import { useVault } from "@/hooks/useVault";
+import { usePriceFeed } from "@/hooks/usePriceFeed";
 
 const Index = () => {
-  const { vault, prices } = useVault();
+  const { prices, feeds, primarySource } = usePriceFeed();
+  const xauPrice = feeds.find((f) => f.symbol === "XAU/USD")?.price ?? 2345.67;
+  const { vault } = useVault(xauPrice);
   const [activeTab, setActiveTab] = useState("vault");
 
   return (
@@ -19,7 +22,7 @@ const Index = () => {
 
       <Header
         xauPrice={vault.xauPriceUsd}
-        priceSource={vault.priceFromSix ? "SIX BFI" : "Pyth"}
+        priceSource={primarySource}
         activeTab={activeTab}
         onTabChange={setActiveTab}
       />
