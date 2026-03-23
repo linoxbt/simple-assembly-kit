@@ -1,5 +1,6 @@
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
+import { useNavigate, useLocation } from "react-router-dom";
 import { formatUsd } from "@/utils/format";
 import aurumxLogo from "@/assets/aurumx-logo.png";
 
@@ -13,7 +14,9 @@ interface HeaderProps {
 const Header = ({ xauPrice, priceSource, activeTab, onTabChange }: HeaderProps) => {
   const { connected, publicKey, disconnect } = useWallet();
   const { setVisible } = useWalletModal();
-  const tabs = ["VAULT", "ADMIN", "EXPLORER"];
+  const navigate = useNavigate();
+  const location = useLocation();
+  const tabs = ["VAULT", "ADMIN", "EXPLORER", "FAUCET"];
 
   const handleWalletClick = () => {
     if (connected) {
@@ -52,21 +55,36 @@ const Header = ({ xauPrice, priceSource, activeTab, onTabChange }: HeaderProps) 
         </div>
       </div>
 
-      <div className="container mx-auto px-4 flex gap-0">
-        {tabs.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => onTabChange(tab.toLowerCase())}
-            className={`px-6 py-2 text-xs tracking-widest font-medium border-b-2 transition-colors ${
-              activeTab === tab.toLowerCase()
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
+      <nav className="container mx-auto px-4 flex gap-0">
+        {tabs.map((tab) => {
+          const tabKey = tab.toLowerCase();
+          const isFaucet = tabKey === "faucet";
+          const isActive = isFaucet
+            ? location.pathname === "/faucet"
+            : location.pathname === "/" && activeTab === tabKey;
+
+          return (
+            <button
+              key={tab}
+              onClick={() => {
+                if (isFaucet) {
+                  navigate("/faucet");
+                } else {
+                  if (location.pathname !== "/") navigate("/");
+                  onTabChange(tabKey);
+                }
+              }}
+              className={`px-6 py-2 text-xs tracking-widest font-medium border-b-2 transition-colors ${
+                isActive
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {tab}
+            </button>
+          );
+        })}
+      </nav>
     </header>
   );
 };
