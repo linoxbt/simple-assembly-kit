@@ -1,16 +1,40 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useState } from "react";
+import Header from "@/components/Header";
+import PriceTicker from "@/components/PriceTicker";
+import VaultDashboard from "@/components/VaultDashboard";
+import AdminPanel from "@/components/AdminPanel";
+import ExplorerPanel from "@/components/ExplorerPanel";
+import Footer from "@/components/Footer";
+import { useVault } from "@/hooks/useVault";
 
-// IMPORTANT: Fully REPLACE this with your own code
-const PlaceholderIndex = () => {
-  // PLACEHOLDER: Replace this entire return statement with the user's app.
-  // The inline background color is intentionally not part of the design system.
+const Index = () => {
+  const { vault, prices, walletConnected, setWalletConnected } = useVault();
+  const [activeTab, setActiveTab] = useState("vault");
+
   return (
-    <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: '#fcfbf8' }}>
-      <img data-lovable-blank-page-placeholder="REMOVE_THIS" src="/placeholder.svg" alt="Your app will live here!" />
+    <div className="min-h-screen flex flex-col bg-background">
+      <div className="scanline-overlay" />
+
+      <PriceTicker prices={prices} />
+
+      <Header
+        xauPrice={vault.xauPriceUsd}
+        priceSource={vault.priceFromSix ? "SIX BFI" : "Pyth"}
+        walletConnected={walletConnected}
+        onConnectWallet={() => setWalletConnected(!walletConnected)}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+      />
+
+      <main className="flex-1 container mx-auto px-4 py-6">
+        {activeTab === "vault" && <VaultDashboard vault={vault} prices={prices} />}
+        {activeTab === "admin" && <AdminPanel />}
+        {activeTab === "explorer" && <ExplorerPanel />}
+      </main>
+
+      <Footer />
     </div>
   );
 };
-
-const Index = PlaceholderIndex;
 
 export default Index;
