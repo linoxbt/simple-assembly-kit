@@ -1,25 +1,7 @@
 import { useState } from "react";
 import { formatUsd, formatOz } from "@/utils/format";
 import { SOLANA_NETWORK } from "@/utils/constants";
-
-export interface TransactionRecord {
-  id: string;
-  type: "deposit" | "mint" | "burn";
-  amount: number;
-  unit: string;
-  txSignature: string;
-  timestamp: Date;
-  status: "confirmed" | "pending" | "failed";
-}
-
-// Mock transaction history for demo
-const MOCK_HISTORY: TransactionRecord[] = [
-  { id: "1", type: "deposit", amount: 2.5, unit: "oz XAU", txSignature: "mock_deposit_abc123def456", timestamp: new Date(Date.now() - 3600000 * 2), status: "confirmed" },
-  { id: "2", type: "mint", amount: 2500, unit: "xUSD", txSignature: "mock_mint_789ghi012jkl", timestamp: new Date(Date.now() - 3600000), status: "confirmed" },
-  { id: "3", type: "deposit", amount: 2.5, unit: "oz XAU", txSignature: "mock_deposit_mno345pqr678", timestamp: new Date(Date.now() - 1800000), status: "confirmed" },
-  { id: "4", type: "mint", amount: 2500, unit: "xUSD", txSignature: "mock_mint_stu901vwx234", timestamp: new Date(Date.now() - 900000), status: "confirmed" },
-  { id: "5", type: "burn", amount: 500, unit: "xUSD", txSignature: "mock_burn_yza567bcd890", timestamp: new Date(Date.now() - 300000), status: "pending" },
-];
+import { TransactionRecord } from "@/stores/protocolStore";
 
 const explorerUrl = (sig: string) =>
   sig.startsWith("mock_")
@@ -48,7 +30,7 @@ interface Props {
   transactions?: TransactionRecord[];
 }
 
-const TransactionHistoryPanel = ({ transactions = MOCK_HISTORY }: Props) => {
+const TransactionHistoryPanel = ({ transactions = [] }: Props) => {
   const [filter, setFilter] = useState<"all" | "deposit" | "mint" | "burn">("all");
   const filtered = filter === "all" ? transactions : transactions.filter((t) => t.type === filter);
 
@@ -87,7 +69,7 @@ const TransactionHistoryPanel = ({ transactions = MOCK_HISTORY }: Props) => {
       <div className="space-y-1.5 max-h-64 overflow-y-auto">
         {filtered.length === 0 ? (
           <div className="text-xs text-muted-foreground text-center py-4">
-            No transactions found
+            {transactions.length === 0 ? "No transactions yet — deposit, mint, or burn to see history" : "No transactions found"}
           </div>
         ) : (
           filtered.map((tx) => (

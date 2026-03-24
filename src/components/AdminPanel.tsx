@@ -1,46 +1,134 @@
 import { useState } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { useProtocolStore } from "@/stores/protocolStore";
 import { AML_REASONS, AmlReason } from "@/utils/constants";
 import { shortenAddress } from "@/utils/format";
 import { toast } from "sonner";
 
-const MOCK_MEMBERS = [
-  "7xKX...mP3q",
-  "4dRY...nW2k",
-  "9pLM...hJ5f",
-];
-
 const AdminPanel = () => {
+  const { publicKey } = useWallet();
+  const walletAddress = publicKey?.toBase58() ?? "";
+
+  const {
+    adminWallets, addAdmin, removeAdmin,
+    allowlist, addToAllowlist, removeFromAllowlist,
+    allowlistRequests, approveRequest, rejectRequest,
+    amlScores, setAmlScore,
+  } = useProtocolStore();
+
   const [newAddress, setNewAddress] = useState("");
-  const [members, setMembers] = useState(MOCK_MEMBERS);
+  const [newAdminAddress, setNewAdminAddress] = useState("");
   const [amlAddress, setAmlAddress] = useState("");
-  const [amlScore, setAmlScore] = useState(25);
+  const [amlScoreVal, setAmlScoreVal] = useState(25);
   const [amlReason, setAmlReason] = useState<AmlReason>("CLEAN");
 
-  const riskLevel = amlScore <= 30 ? "LOW" : amlScore <= 70 ? "MEDIUM" : "HIGH — BLOCKED";
-  const riskColor = amlScore <= 30 ? "text-success" : amlScore <= 70 ? "text-warning" : "text-destructive";
-  const riskBorderColor = amlScore <= 30 ? "border-success text-success hover:bg-success" : amlScore <= 70 ? "border-warning text-warning hover:bg-warning" : "border-destructive text-destructive hover:bg-destructive";
+  const riskLevel = amlScoreVal <= 30 ? "LOW" : amlScoreVal <= 70 ? "MEDIUM" : "HIGH — BLOCKED";
+  const riskColor = amlScoreVal <= 30 ? "text-success" : amlScoreVal <= 70 ? "text-warning" : "text-destructive";
+  const riskBorderColor = amlScoreVal <= 30 ? "border-success text-success hover:bg-success" : amlScoreVal <= 70 ? "border-warning text-warning hover:bg-warning" : "border-destructive text-destructive hover:bg-destructive";
 
-  const handleAdd = () => {
+  const pendingRequests = allowlistRequests.filter((r) => r.status === "pending");
+
+  const handleAddToAllowlist = () => {
     if (newAddress.trim()) {
-      setMembers([...members, shortenAddress(newAddress)]);
+      addToAllowlist(newAddress.trim());
       setNewAddress("");
       toast.success("Address added to AllowList");
     }
   };
 
-  const handleRevoke = (addr: string) => {
-    setMembers(members.filter((m) => m !== addr));
-    toast.success("Address removed from AllowList");
+  const handleAddAdmin = () => {
+    if (newAdminAddress.trim()) {
+      addAdmin(newAdminAddress.trim());
+      setNewAdminAddress("");
+      toast.success("Admin wallet added");
+    }
   };
 
   return (
     <div className="space-y-4">
+      {/* Allowlist Requests */}
+      {pendingRequests.length > 0 && (
+        <div className="bg-card border border-warning/30 rounded-lg p-4 card-glow">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-[10px] text-warning tracking-widest uppercase">
+              Pending KYC Requests
+            </div>
+            <span className="text-[10px] px-2 py-0.5 border border-warning text-warning rounded">
+              {pendingRequests.length}
+            </span>
+          </div>
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {pendingRequests.map((req) => (
+              <div key={req.wallet} className="flex items-center justify-between bg-surface rounded px-3 py-2 text-xs">
+                <span className="text-foreground font-mono">{shortenAddress(req.wallet, 6)}</span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { approveRequest(req.wallet); toast.success(`Approved ${shortenAddress(req.wallet)}`); }}
+                    className="text-success hover:underline text-[10px] tracking-wider"
+                  >
+                    APPROVE
+                  </button>
+                  <button
+                    onClick={() => { rejectRequest(req.wallet); toast.success(`Rejected ${shortenAddress(req.wallet)}`); }}
+                    className="text-destructive hover:underline text-[10px] tracking-wider"
+                  >
+                    REJECT
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="grid lg:grid-cols-2 gap-4">
+        {/* Admin Management */}
+        <div className="bg-card border border-card-border rounded-lg p-4 card-glow">
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-[10px] text-muted-foreground tracking-widest uppercase">Admin Wallet Management</div>
+            <span className="text-[10px] text-muted-foreground">{adminWallets.length} admins</span>
+          </div>
+
+          <div className="flex gap-2 mb-4">
+            <input
+              placeholder="Wallet address"
+              value={newAdminAddress}
+              onChange={(e) => setNewAdminAddress(e.target.value)}
+              className="flex-1 bg-surface border border-card-border rounded px-3 py-2 text-xs text-foreground focus:border-info focus:outline-none"
+            />
+            <button onClick={handleAddAdmin} className="px-4 py-2 text-xs border border-info text-info hover:bg-info hover:text-info-foreground transition-colors rounded tracking-wider font-medium">
+              ADD ADMIN +
+            </button>
+          </div>
+
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {adminWallets.length === 0 ? (
+              <div className="text-xs text-muted-foreground text-center py-3">No admins yet</div>
+            ) : (
+              adminWallets.map((addr) => (
+                <div key={addr} className="flex items-center justify-between bg-surface rounded px-3 py-2 text-xs">
+                  <span className="text-foreground font-mono">{shortenAddress(addr, 6)}</span>
+                  <div className="flex items-center gap-2">
+                    {addr === walletAddress && <span className="text-info text-[10px]">YOU</span>}
+                    <button
+                      onClick={() => { removeAdmin(addr); toast.success("Admin removed"); }}
+                      disabled={addr === walletAddress}
+                      className="text-destructive hover:underline text-[10px] tracking-wider disabled:opacity-30"
+                    >
+                      REMOVE
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
         {/* KYC Allowlist */}
         <div className="bg-card border border-card-border rounded-lg p-4 card-glow">
           <div className="flex items-center justify-between mb-4">
             <div className="text-[10px] text-muted-foreground tracking-widest uppercase">KYC Allowlist Management</div>
-            <span className="text-[10px] text-muted-foreground">{members.length} members</span>
+            <span className="text-[10px] text-muted-foreground">{allowlist.length} members</span>
           </div>
 
           <div className="flex gap-2 mb-4">
@@ -50,23 +138,29 @@ const AdminPanel = () => {
               onChange={(e) => setNewAddress(e.target.value)}
               className="flex-1 bg-surface border border-card-border rounded px-3 py-2 text-xs text-foreground focus:border-success focus:outline-none"
             />
-            <button onClick={handleAdd} className="px-4 py-2 text-xs border border-success text-success hover:bg-success hover:text-success-foreground transition-colors rounded tracking-wider font-medium">
+            <button onClick={handleAddToAllowlist} className="px-4 py-2 text-xs border border-success text-success hover:bg-success hover:text-success-foreground transition-colors rounded tracking-wider font-medium">
               ADD +
             </button>
           </div>
 
           <div className="space-y-2 max-h-48 overflow-y-auto">
-            {members.map((addr) => (
-              <div key={addr} className="flex items-center justify-between bg-surface rounded px-3 py-2 text-xs">
-                <span className="text-foreground font-mono">{addr}</span>
-                <button onClick={() => handleRevoke(addr)} className="text-destructive hover:underline text-[10px] tracking-wider">
-                  REVOKE
-                </button>
-              </div>
-            ))}
+            {allowlist.length === 0 ? (
+              <div className="text-xs text-muted-foreground text-center py-3">No wallets on allowlist</div>
+            ) : (
+              allowlist.map((addr) => (
+                <div key={addr} className="flex items-center justify-between bg-surface rounded px-3 py-2 text-xs">
+                  <span className="text-foreground font-mono">{shortenAddress(addr, 6)}</span>
+                  <button onClick={() => { removeFromAllowlist(addr); toast.success("Address removed from AllowList"); }} className="text-destructive hover:underline text-[10px] tracking-wider">
+                    REVOKE
+                  </button>
+                </div>
+              ))
+            )}
           </div>
         </div>
+      </div>
 
+      <div className="grid lg:grid-cols-2 gap-4">
         {/* AML Risk Scoring */}
         <div className="bg-card border border-card-border rounded-lg p-4 card-glow">
           <div className="text-[10px] text-muted-foreground tracking-widest uppercase mb-4">AML Risk Scoring</div>
@@ -81,14 +175,14 @@ const AdminPanel = () => {
           <div className="mb-2">
             <div className="flex items-center justify-between text-xs mb-1">
               <span className="text-muted-foreground">Risk Score</span>
-              <span className={`font-semibold ${riskColor}`}>{amlScore}/100 — {riskLevel}</span>
+              <span className={`font-semibold ${riskColor}`}>{amlScoreVal}/100 — {riskLevel}</span>
             </div>
             <input
               type="range"
               min={0}
               max={100}
-              value={amlScore}
-              onChange={(e) => setAmlScore(parseInt(e.target.value))}
+              value={amlScoreVal}
+              onChange={(e) => setAmlScoreVal(parseInt(e.target.value))}
               className="w-full accent-primary"
             />
             <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
@@ -109,11 +203,37 @@ const AdminPanel = () => {
           </select>
 
           <button
-            onClick={() => toast.success(`AML score set: ${amlScore}/100`)}
+            onClick={() => {
+              if (!amlAddress.trim()) { toast.error("Enter a wallet address"); return; }
+              setAmlScore(amlAddress.trim(), amlScoreVal, amlReason);
+              toast.success(`AML score set: ${amlScoreVal}/100 for ${shortenAddress(amlAddress)}`);
+            }}
             className={`w-full py-2 text-xs border ${riskBorderColor} hover:text-primary-foreground transition-colors rounded tracking-wider font-medium`}
           >
             SET SCORE
           </button>
+        </div>
+
+        {/* AML Scores List */}
+        <div className="bg-card border border-card-border rounded-lg p-4 card-glow">
+          <div className="text-[10px] text-muted-foreground tracking-widest uppercase mb-4">Active AML Scores</div>
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {Object.keys(amlScores).length === 0 ? (
+              <div className="text-xs text-muted-foreground text-center py-3">No AML scores recorded</div>
+            ) : (
+              Object.entries(amlScores).map(([wallet, data]) => (
+                <div key={wallet} className="flex items-center justify-between bg-surface rounded px-3 py-2 text-xs">
+                  <span className="text-foreground font-mono">{shortenAddress(wallet, 6)}</span>
+                  <div className="flex items-center gap-2">
+                    <span className={`font-semibold ${data.score <= 30 ? "text-success" : data.score <= 70 ? "text-warning" : "text-destructive"}`}>
+                      {data.score}/100
+                    </span>
+                    <span className="text-muted-foreground text-[10px]">{data.reason.replace(/_/g, " ")}</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
 
@@ -152,6 +272,27 @@ const AdminPanel = () => {
           </tbody>
         </table>
       </div>
+
+      {/* Request History */}
+      {allowlistRequests.length > 0 && (
+        <div className="bg-card border border-card-border rounded-lg p-4 card-glow overflow-x-auto">
+          <div className="text-[10px] text-muted-foreground tracking-widest uppercase mb-3">Request History</div>
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {allowlistRequests.map((req) => (
+              <div key={req.wallet} className="flex items-center justify-between bg-surface rounded px-3 py-2 text-xs">
+                <span className="text-foreground font-mono">{shortenAddress(req.wallet, 6)}</span>
+                <span className={
+                  req.status === "approved" ? "text-success" :
+                  req.status === "rejected" ? "text-destructive" :
+                  "text-warning"
+                }>
+                  {req.status.toUpperCase()}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

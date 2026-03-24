@@ -1,25 +1,17 @@
 import { useState } from "react";
 import { formatUsd, formatOz, formatRatio, formatTime, shortenAddress } from "@/utils/format";
-
-const MOCK_KYT_LOG = [
-  { time: new Date(), action: "MINT", amount: 5000, asset: "xUSD", from: "7xKX...mP3q", flagged: false },
-  { time: new Date(Date.now() - 120_000), action: "DEPOSIT", amount: 5, asset: "XAU", from: "7xKX...mP3q", flagged: false },
-  { time: new Date(Date.now() - 600_000), action: "TRANSFER", amount: 12000, asset: "xUSD", from: "4dRY...nW2k", flagged: true },
-];
-
-const MOCK_TRAVEL_RULES = [
-  { id: "a3f2...c8d1", amount: 5000, origVasp: "AMINA Bank AG", beneVasp: "Sygnum Bank AG", timestamp: new Date(Date.now() - 300_000), pda: "9kLp...xQ4m" },
-  { id: "b7e1...d4f2", amount: 12000, origVasp: "AMINA Bank AG", beneVasp: "Bitcoin Suisse AG", timestamp: new Date(Date.now() - 900_000), pda: "3mNr...yT8w" },
-];
+import { useProtocolStore } from "@/stores/protocolStore";
 
 const ExplorerPanel = () => {
+  const { kytEvents, travelRuleRecords } = useProtocolStore();
   const [vaultQuery, setVaultQuery] = useState("");
   const [travelQuery, setTravelQuery] = useState("");
   const [queriedVault, setQueriedVault] = useState<null | { collateral: number; xusd: number; ratio: number; health: string }>(null);
 
   const handleVaultQuery = () => {
     if (vaultQuery.trim()) {
-      setQueriedVault({ collateral: 5.0, xusd: 5000, ratio: 234.6, health: "HEALTHY" });
+      // In production this would query on-chain; for now show empty state
+      setQueriedVault(null);
     }
   };
 
@@ -40,14 +32,18 @@ const ExplorerPanel = () => {
               QUERY
             </button>
           </div>
-          {queriedVault && (
+          {queriedVault ? (
             <div className="space-y-2 text-xs">
               <div className="flex justify-between"><span className="text-muted-foreground">Collateral</span><span className="text-primary">{formatOz(queriedVault.collateral)}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">xUSD Debt</span><span>{formatUsd(queriedVault.xusd)}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Ratio</span><span className="text-success">{formatRatio(queriedVault.ratio)}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Status</span><span className="text-success">{queriedVault.health}</span></div>
             </div>
-          )}
+          ) : vaultQuery ? (
+            <div className="text-xs text-muted-foreground text-center py-3">
+              No vault found — will query on-chain after program deployment
+            </div>
+          ) : null}
         </div>
 
         {/* Travel Rule Lookup */}
@@ -71,57 +67,65 @@ const ExplorerPanel = () => {
         {/* KYT Event Log */}
         <div className="bg-card border border-card-border rounded-lg p-4 card-glow overflow-x-auto">
           <div className="text-[10px] text-muted-foreground tracking-widest uppercase mb-3">KYT Event Log</div>
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-card-border text-muted-foreground">
-                <th className="text-left py-2">TIME</th>
-                <th className="text-left py-2">ACTION</th>
-                <th className="text-left py-2">AMOUNT</th>
-                <th className="text-left py-2">FROM</th>
-                <th className="text-left py-2">FLAG</th>
-              </tr>
-            </thead>
-            <tbody>
-              {MOCK_KYT_LOG.map((e, i) => (
-                <tr key={i} className="border-b border-card-border/30">
-                  <td className="py-2 text-muted-foreground">{formatTime(e.time)}</td>
-                  <td className="py-2">{e.action}</td>
-                  <td className="py-2">{typeof e.amount === "number" && e.asset === "xUSD" ? formatUsd(e.amount) : `${e.amount}oz`}</td>
-                  <td className="py-2 text-muted-foreground">{e.from}</td>
-                  <td className="py-2">
-                    {e.flagged && <span className="text-warning border border-warning px-1.5 py-0.5 rounded text-[10px]">⚠ FLAGGED $10K+</span>}
-                  </td>
+          {kytEvents.length === 0 ? (
+            <div className="text-xs text-muted-foreground text-center py-4">No events recorded</div>
+          ) : (
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-card-border text-muted-foreground">
+                  <th className="text-left py-2">TIME</th>
+                  <th className="text-left py-2">ACTION</th>
+                  <th className="text-left py-2">AMOUNT</th>
+                  <th className="text-left py-2">FROM</th>
+                  <th className="text-left py-2">FLAG</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {kytEvents.map((e, i) => (
+                  <tr key={i} className="border-b border-card-border/30">
+                    <td className="py-2 text-muted-foreground">{formatTime(e.time)}</td>
+                    <td className="py-2">{e.action}</td>
+                    <td className="py-2">{e.amount}</td>
+                    <td className="py-2 text-muted-foreground">{shortenAddress(e.wallet)}</td>
+                    <td className="py-2">
+                      {e.flagged && <span className="text-warning border border-warning px-1.5 py-0.5 rounded text-[10px]">⚠ $10K+</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
 
         {/* Travel Rule Records */}
         <div className="bg-card border border-card-border rounded-lg p-4 card-glow overflow-x-auto">
           <div className="text-[10px] text-muted-foreground tracking-widest uppercase mb-3">Travel Rule Records</div>
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-card-border text-muted-foreground">
-                <th className="text-left py-2">ID</th>
-                <th className="text-left py-2">AMOUNT</th>
-                <th className="text-left py-2">ORIG VASP</th>
-                <th className="text-left py-2">BENE VASP</th>
-                <th className="text-left py-2">PDA</th>
-              </tr>
-            </thead>
-            <tbody>
-              {MOCK_TRAVEL_RULES.map((r, i) => (
-                <tr key={i} className="border-b border-card-border/30">
-                  <td className="py-2 text-info">{r.id}</td>
-                  <td className="py-2">{formatUsd(r.amount)}</td>
-                  <td className="py-2">{r.origVasp}</td>
-                  <td className="py-2">{r.beneVasp}</td>
-                  <td className="py-2 text-muted-foreground">{r.pda}</td>
+          {travelRuleRecords.length === 0 ? (
+            <div className="text-xs text-muted-foreground text-center py-4">No travel rule records</div>
+          ) : (
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-card-border text-muted-foreground">
+                  <th className="text-left py-2">ID</th>
+                  <th className="text-left py-2">AMOUNT</th>
+                  <th className="text-left py-2">ORIG VASP</th>
+                  <th className="text-left py-2">BENE VASP</th>
+                  <th className="text-left py-2">PDA</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {travelRuleRecords.map((r, i) => (
+                  <tr key={i} className="border-b border-card-border/30">
+                    <td className="py-2 text-info">{shortenAddress(r.id)}</td>
+                    <td className="py-2">{formatUsd(r.amount)}</td>
+                    <td className="py-2">{r.origVasp}</td>
+                    <td className="py-2">{r.beneVasp}</td>
+                    <td className="py-2 text-muted-foreground">{shortenAddress(r.pda)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>
