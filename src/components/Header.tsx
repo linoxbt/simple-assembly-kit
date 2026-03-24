@@ -1,6 +1,7 @@
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useProtocolStore } from "@/stores/protocolStore";
 import { formatUsd } from "@/utils/format";
 import aurumxLogo from "@/assets/aurumx-logo.png";
 
@@ -16,7 +17,20 @@ const Header = ({ xauPrice, priceSource, activeTab, onTabChange }: HeaderProps) 
   const { setVisible } = useWalletModal();
   const navigate = useNavigate();
   const location = useLocation();
-  const tabs = ["VAULT", "ADMIN", "EXPLORER", "FAUCET"];
+
+  const walletAddress = publicKey?.toBase58() ?? null;
+  const isAdmin = useProtocolStore((s) => s.isAdmin(walletAddress));
+  const adminWallets = useProtocolStore((s) => s.adminWallets);
+  const addAdmin = useProtocolStore((s) => s.addAdmin);
+
+  // Auto-bootstrap: if no admins exist and wallet connects, make them admin
+  if (connected && walletAddress && adminWallets.length === 0) {
+    addAdmin(walletAddress);
+  }
+
+  const tabs = isAdmin
+    ? ["VAULT", "ADMIN", "EXPLORER", "FAUCET"]
+    : ["VAULT", "EXPLORER", "FAUCET"];
 
   const handleWalletClick = () => {
     if (connected) {
@@ -46,12 +60,19 @@ const Header = ({ xauPrice, priceSource, activeTab, onTabChange }: HeaderProps) 
             <span className="text-muted-foreground">· {priceSource}</span>
           </div>
 
-          <button
-            onClick={handleWalletClick}
-            className="px-4 py-1.5 text-xs border border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors rounded tracking-wider font-medium"
-          >
-            {connected ? shortAddress : "CONNECT WALLET"}
-          </button>
+          <div className="flex items-center gap-2">
+            {connected && isAdmin && (
+              <span className="text-[10px] px-2 py-0.5 border border-warning text-warning rounded tracking-wider">
+                ADMIN
+              </span>
+            )}
+            <button
+              onClick={handleWalletClick}
+              className="px-4 py-1.5 text-xs border border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors rounded tracking-wider font-medium"
+            >
+              {connected ? shortAddress : "CONNECT WALLET"}
+            </button>
+          </div>
         </div>
       </div>
 

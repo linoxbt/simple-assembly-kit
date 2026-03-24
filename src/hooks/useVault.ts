@@ -23,37 +23,32 @@ export interface PriceData {
   source: string;
 }
 
-const MOCK_VAULT: VaultState = {
-  collateralOz: 5.0,
-  collateralUsdValue: 11728.35,
-  xusdDebt: 5000.0,
-  collateralRatio: 234.6,
-  maxMintable: 2818.9,
-  health: "healthy",
+const EMPTY_VAULT: VaultState = {
+  collateralOz: 0,
+  collateralUsdValue: 0,
+  xusdDebt: 0,
+  collateralRatio: 0,
+  maxMintable: 0,
+  health: "empty",
   isLiquidated: false,
-  xauPriceUsd: 2345.67,
+  xauPriceUsd: 0,
   priceIsStale: false,
-  priceFromSix: true,
-  priceUpdatedAt: new Date(),
-  isKycVerified: true,
-  vaultExists: true,
+  priceFromSix: false,
+  priceUpdatedAt: null,
+  isKycVerified: false,
+  vaultExists: false,
 };
 
 export function useVault(xauPrice?: number) {
   const [vault, setVault] = useState<VaultState>(() => {
     if (xauPrice && xauPrice > 0) {
-      const collateralUsdValue = MOCK_VAULT.collateralOz * xauPrice;
-      const collateralRatio = (collateralUsdValue / MOCK_VAULT.xusdDebt) * 100;
-      const maxMintable = (collateralUsdValue / 1.5) - MOCK_VAULT.xusdDebt;
       return {
-        ...MOCK_VAULT,
+        ...EMPTY_VAULT,
         xauPriceUsd: xauPrice,
-        collateralUsdValue,
-        collateralRatio,
-        maxMintable: Math.max(0, maxMintable),
+        priceUpdatedAt: new Date(),
       };
     }
-    return MOCK_VAULT;
+    return EMPTY_VAULT;
   });
   const [loading] = useState(false);
   const [walletConnected, setWalletConnected] = useState(false);
