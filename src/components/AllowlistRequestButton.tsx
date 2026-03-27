@@ -16,16 +16,9 @@ const AllowlistRequestButton = () => {
   const currentRequest = requests.find((r) => r.wallet === walletAddress);
   const isRejected = currentRequest?.status === "rejected";
 
-  const handleRequest = () => {
-    requestAllowlist(walletAddress);
-    toast.success("KYC allowlist request submitted", {
-      description: "An admin will review your request.",
-    });
-  };
-
   if (isRejected) {
     return (
-      <div className="text-xs tracking-wider text-center py-2 rounded border border-destructive text-destructive bg-destructive/5">
+      <div className="text-xs tracking-wider text-center py-2 rounded border border-destructive/40 text-destructive bg-destructive/5">
         ✗ KYC REQUEST REJECTED — CONTACT ADMIN
       </div>
     );
@@ -33,7 +26,7 @@ const AllowlistRequestButton = () => {
 
   if (hasRequested) {
     return (
-      <div className="text-xs tracking-wider text-center py-2 rounded border border-warning text-warning bg-warning/5">
+      <div className="text-xs tracking-wider text-center py-2 rounded border border-accent/40 text-accent bg-accent/5">
         ◌ KYC REQUEST PENDING — AWAITING ADMIN APPROVAL
       </div>
     );
@@ -41,8 +34,8 @@ const AllowlistRequestButton = () => {
 
   return (
     <button
-      onClick={handleRequest}
-      className="w-full text-xs tracking-wider text-center py-2 rounded border border-info text-info bg-info/5 hover:bg-info/10 transition-colors"
+      onClick={() => { requestAllowlist(walletAddress); toast.success("KYC allowlist request submitted", { description: "An admin will review your request." }); }}
+      className="w-full text-xs tracking-wider text-center py-2 rounded border border-primary/40 text-primary bg-primary/5 hover:bg-primary/10 transition-colors"
     >
       → REQUEST KYC ALLOWLIST ACCESS
     </button>

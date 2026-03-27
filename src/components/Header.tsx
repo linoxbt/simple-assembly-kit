@@ -3,7 +3,7 @@ import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useProtocolStore } from "@/stores/protocolStore";
 import { formatUsd } from "@/utils/format";
-import aurumxLogo from "@/assets/aurumx-logo.png";
+import ThemeToggle from "@/components/ThemeToggle";
 
 interface HeaderProps {
   xauPrice: number;
@@ -23,7 +23,6 @@ const Header = ({ xauPrice, priceSource, activeTab, onTabChange }: HeaderProps) 
   const adminWallets = useProtocolStore((s) => s.adminWallets);
   const addAdmin = useProtocolStore((s) => s.addAdmin);
 
-  // Auto-bootstrap: if no admins exist and wallet connects, make them admin
   if (connected && walletAddress && adminWallets.length === 0) {
     addAdmin(walletAddress);
   }
@@ -48,21 +47,23 @@ const Header = ({ xauPrice, priceSource, activeTab, onTabChange }: HeaderProps) 
     <header className="border-b border-card-border bg-surface">
       <div className="container mx-auto px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <img src={aurumxLogo} alt="AurumX Logo" className="h-8 w-8" />
+          <img src="/aurumx-logo.png" alt="AurumX Logo" className="h-8 w-8" width={32} height={32} />
           <h1 className="text-xl font-bold text-primary gold-glow tracking-widest">AURUMX</h1>
-          <span className="text-[10px] px-2 py-0.5 border border-info text-info rounded font-semibold tracking-wider">DEVNET</span>
+          <span className="text-[10px] px-2 py-0.5 border border-primary/40 text-primary/70 rounded font-semibold tracking-wider">DEVNET</span>
         </div>
 
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-4">
           <div className="hidden md:flex items-center gap-2 text-xs">
             <span className="text-muted-foreground">XAU</span>
             <span className="text-primary font-semibold gold-glow">{formatUsd(xauPrice)}</span>
             <span className="text-muted-foreground">· {priceSource}</span>
           </div>
 
+          <ThemeToggle />
+
           <div className="flex items-center gap-2">
             {connected && isAdmin && (
-              <span className="text-[10px] px-2 py-0.5 border border-warning text-warning rounded tracking-wider">
+              <span className="text-[10px] px-2 py-0.5 border border-primary/50 text-primary/80 rounded tracking-wider">
                 ADMIN
               </span>
             )}

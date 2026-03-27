@@ -5,7 +5,7 @@ interface MetricCardProps {
   colorClass?: string;
 }
 
-const MetricCard = ({ label, value, sub, colorClass = "text-foreground" }: MetricCardProps) => {
+const MetricCard = ({ label, value, sub, colorClass = "text-primary" }: MetricCardProps) => {
   return (
     <div className="bg-card border border-card-border rounded-lg p-4 card-glow">
       <div className="text-[10px] text-muted-foreground tracking-widest uppercase mb-2">{label}</div>
