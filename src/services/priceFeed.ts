@@ -18,7 +18,7 @@ const PYTH_FEED_IDS: Record<string, string> = {
   "XAG/USD": "0xf2fb02c32b055c805e7238d628e5e9dadef274376114eb1f012337cabe93871e",
 };
 
-const PYTH_HERMES_URL = "https://hermes.pyth.network/api/latest_price_feeds";
+const PYTH_HERMES_URL = "https://hermes.pyth.network/v2/updates/price/latest";
 const STALE_THRESHOLD_MS = 120_000; // 2 minutes
 
 // SIX BFI fallback prices (mock — replace with real SIX API when available)
