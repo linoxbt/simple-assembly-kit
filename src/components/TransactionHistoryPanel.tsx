@@ -4,27 +4,9 @@ import { SOLANA_NETWORK } from "@/utils/constants";
 import { TransactionRecord } from "@/stores/protocolStore";
 
 const explorerUrl = (sig: string) =>
-  sig.startsWith("mock_")
-    ? "#"
-    : `https://explorer.solana.com/tx/${sig}?cluster=${SOLANA_NETWORK}`;
+  sig.startsWith("mock_") ? "#" : `https://explorer.solana.com/tx/${sig}?cluster=${SOLANA_NETWORK}`;
 
-const typeColors: Record<string, string> = {
-  deposit: "text-primary",
-  mint: "text-success",
-  burn: "text-destructive",
-};
-
-const typeLabels: Record<string, string> = {
-  deposit: "DEPOSIT",
-  mint: "MINT",
-  burn: "BURN",
-};
-
-const statusIcons: Record<string, string> = {
-  confirmed: "✓",
-  pending: "◌",
-  failed: "✗",
-};
+const typeLabels: Record<string, string> = { deposit: "DEPOSIT", mint: "MINT", burn: "BURN" };
 
 interface Props {
   transactions?: TransactionRecord[];
@@ -46,9 +28,7 @@ const TransactionHistoryPanel = ({ transactions = [] }: Props) => {
   return (
     <div className="bg-card border border-card-border rounded-lg p-4 card-glow">
       <div className="flex items-center justify-between mb-3">
-        <div className="text-[10px] text-muted-foreground tracking-widest uppercase">
-          Transaction History
-        </div>
+        <div className="text-[10px] text-muted-foreground tracking-widest uppercase">Transaction History</div>
         <div className="flex gap-1">
           {(["all", "deposit", "mint", "burn"] as const).map((f) => (
             <button
@@ -73,39 +53,18 @@ const TransactionHistoryPanel = ({ transactions = [] }: Props) => {
           </div>
         ) : (
           filtered.map((tx) => (
-            <div
-              key={tx.id}
-              className="flex items-center justify-between text-xs py-1.5 border-b border-card-border last:border-0"
-            >
+            <div key={tx.id} className="flex items-center justify-between text-xs py-1.5 border-b border-card-border last:border-0">
               <div className="flex items-center gap-2">
-                <span className={`font-semibold ${typeColors[tx.type]}`}>
-                  {typeLabels[tx.type]}
-                </span>
-                <span className="text-foreground">
-                  {tx.type === "deposit" ? formatOz(tx.amount) : formatUsd(tx.amount)}
-                </span>
+                <span className="font-semibold text-primary">{typeLabels[tx.type]}</span>
+                <span className="text-foreground">{tx.type === "deposit" ? formatOz(tx.amount) : formatUsd(tx.amount)}</span>
                 <span className="text-muted-foreground">{tx.unit}</span>
               </div>
               <div className="flex items-center gap-2">
-                <span
-                  className={`text-[10px] ${
-                    tx.status === "confirmed"
-                      ? "text-success"
-                      : tx.status === "pending"
-                      ? "text-warning"
-                      : "text-destructive"
-                  }`}
-                >
-                  {statusIcons[tx.status]}
+                <span className={`text-[10px] ${tx.status === "confirmed" ? "text-primary" : tx.status === "pending" ? "text-accent" : "text-destructive"}`}>
+                  {tx.status === "confirmed" ? "✓" : tx.status === "pending" ? "◌" : "✗"}
                 </span>
                 <span className="text-muted-foreground">{formatTime(tx.timestamp)}</span>
-                <a
-                  href={explorerUrl(tx.txSignature)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-info hover:underline text-[10px] tracking-wider"
-                  title={tx.txSignature}
-                >
+                <a href={explorerUrl(tx.txSignature)} target="_blank" rel="noopener noreferrer" className="text-primary/70 hover:underline text-[10px] tracking-wider" title={tx.txSignature}>
                   {tx.txSignature.startsWith("mock_") ? "MOCK" : `${tx.txSignature.slice(0, 8)}…`}
                 </a>
               </div>

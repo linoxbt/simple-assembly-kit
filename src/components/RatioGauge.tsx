@@ -7,8 +7,8 @@ interface RatioGaugeProps {
 }
 
 const healthColors: Record<HealthStatus, string> = {
-  healthy: "text-success",
-  warning: "text-warning",
+  healthy: "text-primary",
+  warning: "text-accent",
   danger: "text-destructive",
   liquidated: "text-destructive",
   empty: "text-muted-foreground",
@@ -26,16 +26,13 @@ const RatioGauge = ({ ratio, health }: RatioGaugeProps) => {
       </div>
       <div className="relative h-3 rounded-full overflow-hidden bg-muted">
         <div className="gauge-bar absolute inset-0 rounded-full" />
-        <div
-          className="absolute top-0 bottom-0 w-0.5 bg-foreground z-10"
-          style={{ left: `${percentage}%` }}
-        />
+        <div className="absolute top-0 bottom-0 w-0.5 bg-foreground z-10" style={{ left: `${percentage}%` }} />
       </div>
       <div className="flex justify-between mt-2 text-[10px] text-muted-foreground">
         <span>0%</span>
         <span className="text-destructive">120% LIQ</span>
-        <span className="text-warning">150% MINT</span>
-        <span className="text-success">200% SAFE</span>
+        <span className="text-accent">150% MINT</span>
+        <span className="text-primary">200% SAFE</span>
         <span>300%</span>
       </div>
     </div>

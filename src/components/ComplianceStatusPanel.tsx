@@ -23,7 +23,7 @@ const ComplianceStatusPanel = ({ isKycVerified, xauPrice, xagPrice, priceSource 
         {items.map((item) => (
           <div key={item.label} className="flex items-center justify-between text-xs">
             <span className="text-muted-foreground">{item.label}</span>
-            <span className={item.verified ? "text-success" : "text-destructive"}>
+            <span className={item.verified ? "text-primary" : "text-destructive"}>
               {item.text || (item.verified ? "VERIFIED" : "NOT VERIFIED")}
             </span>
           </div>
@@ -37,14 +37,14 @@ const ComplianceStatusPanel = ({ isKycVerified, xauPrice, xagPrice, priceSource 
             <span className="text-muted-foreground">XAU</span>
             <span>
               <span className="text-primary">{formatUsd(xauPrice)}</span>
-              <span className="text-success ml-2 text-[10px]">{priceSource} LIVE</span>
+              <span className="text-primary/70 ml-2 text-[10px]">{priceSource} LIVE</span>
             </span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">XAG</span>
             <span>
               <span className="text-primary">{formatUsd(xagPrice)}</span>
-              <span className="text-success ml-2 text-[10px]">{priceSource} LIVE</span>
+              <span className="text-primary/70 ml-2 text-[10px]">{priceSource} LIVE</span>
             </span>
           </div>
         </div>

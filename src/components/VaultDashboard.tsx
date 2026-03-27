@@ -3,17 +3,19 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import MetricCard from "@/components/MetricCard";
 import RatioGauge from "@/components/RatioGauge";
 import ComplianceStatusPanel from "@/components/ComplianceStatusPanel";
-import TravelRulePanel from "@/components/TravelRulePanel";
 import KytEventsPanel from "@/components/KytEventsPanel";
 import TransactionHistoryPanel from "@/components/TransactionHistoryPanel";
 import LiquidationMonitor from "@/components/LiquidationMonitor";
 import ProtocolDiagram from "@/components/ProtocolDiagram";
+import PriceHistoryChart from "@/components/PriceHistoryChart";
 import AllowlistRequestButton from "@/components/AllowlistRequestButton";
 import { useProtocolStore } from "@/stores/protocolStore";
+import { useVaultNotifications } from "@/hooks/useVaultNotifications";
 import { VaultState } from "@/hooks/useVault";
 import { formatUsd, formatOz, formatRatio } from "@/utils/format";
 import { TRAVEL_RULE_THRESHOLD, KYT_FLAG_THRESHOLD } from "@/utils/constants";
 import { depositCollateral, mintXusd, burnXusd } from "@/services/anchorProgram";
+import TravelRulePanel from "@/components/TravelRulePanel";
 import { toast } from "sonner";
 
 interface VaultDashboardProps {
@@ -28,6 +30,8 @@ const VaultDashboard = ({ vault, prices }: VaultDashboardProps) => {
   const addTransaction = useProtocolStore((s) => s.addTransaction);
   const addKytEvent = useProtocolStore((s) => s.addKytEvent);
   const transactions = useProtocolStore((s) => s.transactions);
+
+  useVaultNotifications(vault, connected);
 
   const [depositOz, setDepositOz] = useState("");
   const [mintUsd, setMintUsd] = useState("");
@@ -59,10 +63,7 @@ const VaultDashboard = ({ vault, prices }: VaultDashboardProps) => {
   };
 
   const handleDeposit = async () => {
-    if (!connected || !publicKey || !signTransaction) {
-      toast.error("Connect your wallet first");
-      return;
-    }
+    if (!connected || !publicKey || !signTransaction) { toast.error("Connect your wallet first"); return; }
     const oz = parseFloat(depositOz);
     if (!oz || oz <= 0) return;
     setLoading("deposit");
@@ -81,10 +82,7 @@ const VaultDashboard = ({ vault, prices }: VaultDashboardProps) => {
   };
 
   const handleMint = async () => {
-    if (!connected || !publicKey || !signTransaction) {
-      toast.error("Connect your wallet first");
-      return;
-    }
+    if (!connected || !publicKey || !signTransaction) { toast.error("Connect your wallet first"); return; }
     if (!mintAmount || mintAmount <= 0) return;
     setLoading("mint");
     try {
@@ -102,10 +100,7 @@ const VaultDashboard = ({ vault, prices }: VaultDashboardProps) => {
   };
 
   const handleBurn = async () => {
-    if (!connected || !publicKey || !signTransaction) {
-      toast.error("Connect your wallet first");
-      return;
-    }
+    if (!connected || !publicKey || !signTransaction) { toast.error("Connect your wallet first"); return; }
     const usd = parseFloat(burnUsd);
     if (!usd || usd <= 0) return;
     setLoading("burn");
@@ -123,10 +118,16 @@ const VaultDashboard = ({ vault, prices }: VaultDashboardProps) => {
     }
   };
 
+  const healthColor = vault.health === "healthy" || vault.health === "empty"
+    ? "text-primary"
+    : vault.health === "warning"
+    ? "text-accent"
+    : "text-destructive";
+
   return (
     <div className="space-y-4">
       {!connected && (
-        <div className="text-xs tracking-wider text-center py-2 rounded border border-warning text-warning bg-warning/5">
+        <div className="text-xs tracking-wider text-center py-2 rounded border border-primary/40 text-primary/70 bg-primary/5">
           ⚠ CONNECT WALLET TO INTERACT WITH VAULT
         </div>
       )}
@@ -134,21 +135,21 @@ const VaultDashboard = ({ vault, prices }: VaultDashboardProps) => {
       {connected && !isOnAllowlist && <AllowlistRequestButton />}
 
       {connected && isOnAllowlist && (
-        <div className="text-xs tracking-wider text-center py-2 rounded border border-success text-success bg-success/5">
+        <div className="text-xs tracking-wider text-center py-2 rounded border border-primary/40 text-primary bg-primary/5">
           ✓ KYC VERIFIED — WALLET ON ALLOWLIST
         </div>
       )}
 
       {connected && !isOnAllowlist && (
-        <div className="text-xs tracking-wider text-center py-2 rounded border border-destructive text-destructive bg-destructive/5">
+        <div className="text-xs tracking-wider text-center py-2 rounded border border-destructive/40 text-destructive bg-destructive/5">
           ✗ KYC NOT VERIFIED — REQUEST ALLOWLIST ACCESS ABOVE
         </div>
       )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <MetricCard label="Collateral" value={connected ? formatOz(vault.collateralOz) : "—"} sub={connected ? `≈${formatUsd(vault.collateralUsdValue)}` : "connect wallet"} colorClass="text-primary gold-glow" />
-        <MetricCard label="xUSD Minted" value={connected ? formatUsd(vault.xusdDebt) : "—"} sub={connected ? "outstanding" : "connect wallet"} colorClass="text-success" />
-        <MetricCard label="Collateral Ratio" value={connected ? formatRatio(vault.collateralRatio) : "—"} sub={connected ? vault.health.toUpperCase() : "connect wallet"} colorClass={vault.health === "healthy" ? "text-success" : vault.health === "warning" ? "text-warning" : "text-destructive"} />
+        <MetricCard label="Collateral" value={connected ? formatOz(vault.collateralOz) : "—"} sub={connected ? `≈${formatUsd(vault.collateralUsdValue)}` : "connect wallet"} />
+        <MetricCard label="xUSD Minted" value={connected ? formatUsd(vault.xusdDebt) : "—"} sub={connected ? "outstanding" : "connect wallet"} />
+        <MetricCard label="Collateral Ratio" value={connected ? formatRatio(vault.collateralRatio) : "—"} sub={connected ? vault.health.toUpperCase() : "connect wallet"} colorClass={healthColor} />
         <MetricCard label="Max Mintable" value={connected ? formatUsd(vault.maxMintable) : "—"} sub="at 150% ratio" />
       </div>
 
@@ -156,7 +157,8 @@ const VaultDashboard = ({ vault, prices }: VaultDashboardProps) => {
         <div className="lg:col-span-2 space-y-4">
           <RatioGauge ratio={connected ? vault.collateralRatio : 0} health={connected ? vault.health : "empty"} />
 
-          {/* Protocol Architecture */}
+          <PriceHistoryChart currentPrice={vault.xauPriceUsd} />
+
           <ProtocolDiagram />
 
           {/* Deposit */}
@@ -193,7 +195,6 @@ const VaultDashboard = ({ vault, prices }: VaultDashboardProps) => {
             </div>
           </div>
 
-          {/* Transaction History */}
           <TransactionHistoryPanel transactions={transactions} />
         </div>
 
