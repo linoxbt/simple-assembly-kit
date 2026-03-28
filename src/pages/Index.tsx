@@ -1,18 +1,30 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Header from "@/components/Header";
 import PriceTicker from "@/components/PriceTicker";
 import VaultDashboard from "@/components/VaultDashboard";
 import AdminPanel from "@/components/AdminPanel";
 import ExplorerPanel from "@/components/ExplorerPanel";
 import Footer from "@/components/Footer";
+import LoadingScreen from "@/components/LoadingScreen";
 import { useVault } from "@/hooks/useVault";
 import { usePriceFeed } from "@/hooks/usePriceFeed";
+import { useProtocolStore } from "@/stores/protocolStore";
 
 const Index = () => {
   const { prices, feeds, primarySource } = usePriceFeed();
-  const xauPrice = feeds.find((f) => f.symbol === "XAU/USD")?.price ?? 2345.67;
+  const xauPrice = feeds.find((f) => f.symbol === "XAU/USD")?.price ?? 3022.45;
   const { vault } = useVault(xauPrice);
   const [activeTab, setActiveTab] = useState("vault");
+  const initialized = useProtocolStore((s) => s.initialized);
+  const initializeStore = useProtocolStore((s) => s.initializeStore);
+
+  useEffect(() => {
+    initializeStore();
+  }, [initializeStore]);
+
+  if (!initialized) {
+    return <LoadingScreen />;
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-background">

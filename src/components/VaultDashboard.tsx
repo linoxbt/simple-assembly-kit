@@ -42,8 +42,11 @@ const VaultDashboard = ({ vault, prices }: VaultDashboardProps) => {
   const showTravelRule = mintAmount >= TRAVEL_RULE_THRESHOLD;
   const xagPrice = prices.find((p) => p.symbol === "XAG/USD")?.price ?? 0;
 
-  const recordAction = (type: "deposit" | "mint" | "burn", amount: number, unit: string, txSig: string) => {
-    addTransaction({
+  // Determine price source label
+  const priceSource = prices.length > 0 ? prices[0].source : "SIX BFI";
+
+  const recordAction = async (type: "deposit" | "mint" | "burn", amount: number, unit: string, txSig: string) => {
+    await addTransaction({
       id: Date.now().toString(),
       type,
       amount,
@@ -51,8 +54,9 @@ const VaultDashboard = ({ vault, prices }: VaultDashboardProps) => {
       txSignature: txSig,
       timestamp: new Date(),
       status: "confirmed",
+      wallet: walletAddress ?? "unknown",
     });
-    addKytEvent({
+    await addKytEvent({
       time: new Date(),
       action: type.toUpperCase(),
       amount: type === "deposit" ? `${amount}oz` : formatUsd(amount),
@@ -71,7 +75,7 @@ const VaultDashboard = ({ vault, prices }: VaultDashboardProps) => {
       const result = await depositCollateral(publicKey, oz, signTransaction);
       if (result.success) {
         toast.success(`Deposited ${oz} oz XAU`, { description: `TX: ${result.txSignature?.slice(0, 12)}…` });
-        recordAction("deposit", oz, "oz XAU", result.txSignature ?? "");
+        await recordAction("deposit", oz, "oz XAU", result.txSignature ?? "");
         setDepositOz("");
       }
     } catch (err: any) {
@@ -89,7 +93,7 @@ const VaultDashboard = ({ vault, prices }: VaultDashboardProps) => {
       const result = await mintXusd(publicKey, mintAmount, signTransaction);
       if (result.success) {
         toast.success(`Minted ${formatUsd(mintAmount)} xUSD`, { description: `TX: ${result.txSignature?.slice(0, 12)}…` });
-        recordAction("mint", mintAmount, "xUSD", result.txSignature ?? "");
+        await recordAction("mint", mintAmount, "xUSD", result.txSignature ?? "");
         setMintUsd("");
       }
     } catch (err: any) {
@@ -108,7 +112,7 @@ const VaultDashboard = ({ vault, prices }: VaultDashboardProps) => {
       const result = await burnXusd(publicKey, usd, signTransaction);
       if (result.success) {
         toast.success(`Burned ${formatUsd(usd)} xUSD`, { description: `TX: ${result.txSignature?.slice(0, 12)}…` });
-        recordAction("burn", usd, "xUSD", result.txSignature ?? "");
+        await recordAction("burn", usd, "xUSD", result.txSignature ?? "");
         setBurnUsd("");
       }
     } catch (err: any) {
@@ -199,7 +203,7 @@ const VaultDashboard = ({ vault, prices }: VaultDashboardProps) => {
         </div>
 
         <div className="space-y-4">
-          <ComplianceStatusPanel isKycVerified={isOnAllowlist} xauPrice={vault.xauPriceUsd} xagPrice={xagPrice} priceSource={vault.priceFromSix ? "SIX BFI" : "Pyth"} />
+          <ComplianceStatusPanel isKycVerified={isOnAllowlist} xauPrice={vault.xauPriceUsd} xagPrice={xagPrice} priceSource={priceSource} />
           <LiquidationMonitor />
           <KytEventsPanel />
         </div>

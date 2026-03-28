@@ -8,6 +8,7 @@ import { toast } from "sonner";
 const AdminPanel = () => {
   const { publicKey } = useWallet();
   const walletAddress = publicKey?.toBase58() ?? "";
+  const isAdmin = useProtocolStore((s) => s.isAdmin(walletAddress));
 
   const {
     adminWallets, addAdmin, removeAdmin,
@@ -22,8 +23,17 @@ const AdminPanel = () => {
   const [amlScoreVal, setAmlScoreVal] = useState(25);
   const [amlReason, setAmlReason] = useState<AmlReason>("CLEAN");
 
-  const riskLabel = amlScoreVal <= 30 ? "LOW" : amlScoreVal <= 70 ? "MEDIUM" : "HIGH — BLOCKED";
+  // Guard: only admins can see this panel
+  if (!isAdmin) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-xs tracking-widest text-destructive uppercase">⚠ ACCESS DENIED</div>
+        <p className="text-sm text-muted-foreground mt-2">Only admin wallets can access this dashboard.</p>
+      </div>
+    );
+  }
 
+  const riskLabel = amlScoreVal <= 30 ? "LOW" : amlScoreVal <= 70 ? "MEDIUM" : "HIGH — BLOCKED";
   const pendingRequests = allowlistRequests.filter((r) => r.status === "pending");
 
   return (
@@ -40,8 +50,8 @@ const AdminPanel = () => {
               <div key={req.wallet} className="flex items-center justify-between bg-surface rounded px-3 py-2 text-xs">
                 <span className="text-foreground font-mono">{shortenAddress(req.wallet, 6)}</span>
                 <div className="flex gap-2">
-                  <button onClick={() => { approveRequest(req.wallet); toast.success(`Approved ${shortenAddress(req.wallet)}`); }} className="text-primary hover:underline text-[10px] tracking-wider">APPROVE</button>
-                  <button onClick={() => { rejectRequest(req.wallet); toast.success(`Rejected ${shortenAddress(req.wallet)}`); }} className="text-destructive hover:underline text-[10px] tracking-wider">REJECT</button>
+                  <button onClick={async () => { await approveRequest(req.wallet); toast.success(`Approved ${shortenAddress(req.wallet)}`); }} className="text-primary hover:underline text-[10px] tracking-wider">APPROVE</button>
+                  <button onClick={async () => { await rejectRequest(req.wallet); toast.success(`Rejected ${shortenAddress(req.wallet)}`); }} className="text-destructive hover:underline text-[10px] tracking-wider">REJECT</button>
                 </div>
               </div>
             ))}
@@ -58,7 +68,7 @@ const AdminPanel = () => {
           </div>
           <div className="flex gap-2 mb-4">
             <input placeholder="Wallet address" value={newAdminAddress} onChange={(e) => setNewAdminAddress(e.target.value)} className="flex-1 bg-surface border border-card-border rounded px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none" />
-            <button onClick={() => { if (newAdminAddress.trim()) { addAdmin(newAdminAddress.trim()); setNewAdminAddress(""); toast.success("Admin wallet added"); } }} className="px-4 py-2 text-xs border border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors rounded tracking-wider font-medium">ADD ADMIN +</button>
+            <button onClick={async () => { if (newAdminAddress.trim()) { await addAdmin(newAdminAddress.trim(), walletAddress); setNewAdminAddress(""); toast.success("Admin wallet added"); } }} className="px-4 py-2 text-xs border border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors rounded tracking-wider font-medium">ADD ADMIN +</button>
           </div>
           <div className="space-y-2 max-h-48 overflow-y-auto">
             {adminWallets.length === 0 ? (
@@ -69,7 +79,7 @@ const AdminPanel = () => {
                   <span className="text-foreground font-mono">{shortenAddress(addr, 6)}</span>
                   <div className="flex items-center gap-2">
                     {addr === walletAddress && <span className="text-primary text-[10px]">YOU</span>}
-                    <button onClick={() => { removeAdmin(addr); toast.success("Admin removed"); }} disabled={addr === walletAddress} className="text-destructive hover:underline text-[10px] tracking-wider disabled:opacity-30">REMOVE</button>
+                    <button onClick={async () => { await removeAdmin(addr); toast.success("Admin removed"); }} disabled={addr === walletAddress || addr === "BkR1BUvFmcV6nDYh3FsCEquLqy6KPQnzt6VEQY4Ydcry"} className="text-destructive hover:underline text-[10px] tracking-wider disabled:opacity-30">REMOVE</button>
                   </div>
                 </div>
               ))
@@ -85,7 +95,7 @@ const AdminPanel = () => {
           </div>
           <div className="flex gap-2 mb-4">
             <input placeholder="Wallet address" value={newAddress} onChange={(e) => setNewAddress(e.target.value)} className="flex-1 bg-surface border border-card-border rounded px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none" />
-            <button onClick={() => { if (newAddress.trim()) { addToAllowlist(newAddress.trim()); setNewAddress(""); toast.success("Address added to AllowList"); } }} className="px-4 py-2 text-xs border border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors rounded tracking-wider font-medium">ADD +</button>
+            <button onClick={async () => { if (newAddress.trim()) { await addToAllowlist(newAddress.trim(), walletAddress); setNewAddress(""); toast.success("Address added to AllowList"); } }} className="px-4 py-2 text-xs border border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors rounded tracking-wider font-medium">ADD +</button>
           </div>
           <div className="space-y-2 max-h-48 overflow-y-auto">
             {allowlist.length === 0 ? (
@@ -94,7 +104,7 @@ const AdminPanel = () => {
               allowlist.map((addr) => (
                 <div key={addr} className="flex items-center justify-between bg-surface rounded px-3 py-2 text-xs">
                   <span className="text-foreground font-mono">{shortenAddress(addr, 6)}</span>
-                  <button onClick={() => { removeFromAllowlist(addr); toast.success("Address removed from AllowList"); }} className="text-destructive hover:underline text-[10px] tracking-wider">REVOKE</button>
+                  <button onClick={async () => { await removeFromAllowlist(addr); toast.success("Address removed from AllowList"); }} className="text-destructive hover:underline text-[10px] tracking-wider">REVOKE</button>
                 </div>
               ))
             )}
@@ -120,7 +130,7 @@ const AdminPanel = () => {
           <select value={amlReason} onChange={(e) => setAmlReason(e.target.value as AmlReason)} className="w-full bg-surface border border-card-border rounded px-3 py-2 text-xs text-foreground mb-4 focus:outline-none">
             {AML_REASONS.map((r) => <option key={r} value={r}>{r.replace(/_/g, " ")}</option>)}
           </select>
-          <button onClick={() => { if (!amlAddress.trim()) { toast.error("Enter a wallet address"); return; } setAmlScore(amlAddress.trim(), amlScoreVal, amlReason); toast.success(`AML score set: ${amlScoreVal}/100 for ${shortenAddress(amlAddress)}`); }} className="w-full py-2 text-xs border border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors rounded tracking-wider font-medium">SET SCORE</button>
+          <button onClick={async () => { if (!amlAddress.trim()) { toast.error("Enter a wallet address"); return; } await setAmlScore(amlAddress.trim(), amlScoreVal, amlReason); toast.success(`AML score set: ${amlScoreVal}/100 for ${shortenAddress(amlAddress)}`); }} className="w-full py-2 text-xs border border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors rounded tracking-wider font-medium">SET SCORE</button>
         </div>
 
         {/* AML Scores List */}
