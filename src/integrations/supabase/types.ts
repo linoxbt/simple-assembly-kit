@@ -14,7 +14,186 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      admin_wallets: {
+        Row: {
+          added_by: string | null
+          created_at: string
+          id: string
+          wallet_address: string
+        }
+        Insert: {
+          added_by?: string | null
+          created_at?: string
+          id?: string
+          wallet_address: string
+        }
+        Update: {
+          added_by?: string | null
+          created_at?: string
+          id?: string
+          wallet_address?: string
+        }
+        Relationships: []
+      }
+      allowlist: {
+        Row: {
+          added_by: string | null
+          created_at: string
+          id: string
+          wallet_address: string
+        }
+        Insert: {
+          added_by?: string | null
+          created_at?: string
+          id?: string
+          wallet_address: string
+        }
+        Update: {
+          added_by?: string | null
+          created_at?: string
+          id?: string
+          wallet_address?: string
+        }
+        Relationships: []
+      }
+      allowlist_requests: {
+        Row: {
+          decided_at: string | null
+          id: string
+          requested_at: string
+          status: string
+          wallet_address: string
+        }
+        Insert: {
+          decided_at?: string | null
+          id?: string
+          requested_at?: string
+          status?: string
+          wallet_address: string
+        }
+        Update: {
+          decided_at?: string | null
+          id?: string
+          requested_at?: string
+          status?: string
+          wallet_address?: string
+        }
+        Relationships: []
+      }
+      aml_scores: {
+        Row: {
+          id: string
+          reason: string
+          score: number
+          updated_at: string
+          wallet_address: string
+        }
+        Insert: {
+          id?: string
+          reason?: string
+          score?: number
+          updated_at?: string
+          wallet_address: string
+        }
+        Update: {
+          id?: string
+          reason?: string
+          score?: number
+          updated_at?: string
+          wallet_address?: string
+        }
+        Relationships: []
+      }
+      kyt_events: {
+        Row: {
+          action: string
+          amount: string
+          asset: string
+          created_at: string
+          flagged: boolean
+          id: string
+          wallet_address: string
+        }
+        Insert: {
+          action: string
+          amount: string
+          asset: string
+          created_at?: string
+          flagged?: boolean
+          id?: string
+          wallet_address: string
+        }
+        Update: {
+          action?: string
+          amount?: string
+          asset?: string
+          created_at?: string
+          flagged?: boolean
+          id?: string
+          wallet_address?: string
+        }
+        Relationships: []
+      }
+      transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          status: string
+          tx_signature: string
+          type: string
+          unit: string
+          wallet_address: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          status?: string
+          tx_signature: string
+          type: string
+          unit: string
+          wallet_address: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          status?: string
+          tx_signature?: string
+          type?: string
+          unit?: string
+          wallet_address?: string
+        }
+        Relationships: []
+      }
+      travel_rule_records: {
+        Row: {
+          amount: number
+          bene_vasp: string
+          created_at: string
+          id: string
+          orig_vasp: string
+          pda: string
+        }
+        Insert: {
+          amount: number
+          bene_vasp: string
+          created_at?: string
+          id?: string
+          orig_vasp: string
+          pda: string
+        }
+        Update: {
+          amount?: number
+          bene_vasp?: string
+          created_at?: string
+          id?: string
+          orig_vasp?: string
+          pda?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
