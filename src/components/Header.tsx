@@ -20,13 +20,8 @@ const Header = ({ xauPrice, priceSource, activeTab, onTabChange }: HeaderProps) 
 
   const walletAddress = publicKey?.toBase58() ?? null;
   const isAdmin = useProtocolStore((s) => s.isAdmin(walletAddress));
-  const adminWallets = useProtocolStore((s) => s.adminWallets);
-  const addAdmin = useProtocolStore((s) => s.addAdmin);
 
-  if (connected && walletAddress && adminWallets.length === 0) {
-    addAdmin(walletAddress);
-  }
-
+  // Only show ADMIN tab to admins
   const tabs = isAdmin
     ? ["VAULT", "ADMIN", "EXPLORER", "FAUCET"]
     : ["VAULT", "EXPLORER", "FAUCET"];

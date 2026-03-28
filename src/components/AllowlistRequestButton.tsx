@@ -32,9 +32,14 @@ const AllowlistRequestButton = () => {
     );
   }
 
+  const handleRequest = async () => {
+    await requestAllowlist(walletAddress);
+    toast.success("KYC allowlist request submitted", { description: "An admin will review your request." });
+  };
+
   return (
     <button
-      onClick={() => { requestAllowlist(walletAddress); toast.success("KYC allowlist request submitted", { description: "An admin will review your request." }); }}
+      onClick={handleRequest}
       className="w-full text-xs tracking-wider text-center py-2 rounded border border-primary/40 text-primary bg-primary/5 hover:bg-primary/10 transition-colors"
     >
       → REQUEST KYC ALLOWLIST ACCESS
