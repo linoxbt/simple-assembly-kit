@@ -162,6 +162,48 @@ export const useProtocolStore = create<ProtocolState>((set, get) => ({
       amlScores,
       travelRuleRecords,
     });
+
+    // Real-time subscriptions
+    supabase
+      .channel("admin-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "allowlist_requests" }, (payload) => {
+        if (payload.eventType === "INSERT") {
+          const r = payload.new as any;
+          set((s) => {
+            if (s.allowlistRequests.some((req) => req.wallet === r.wallet_address)) return s;
+            return {
+              allowlistRequests: [
+                ...s.allowlistRequests,
+                { wallet: r.wallet_address, requestedAt: new Date(r.requested_at), status: r.status as any, decidedAt: r.decided_at ? new Date(r.decided_at) : undefined },
+              ],
+            };
+          });
+        } else if (payload.eventType === "UPDATE") {
+          const r = payload.new as any;
+          set((s) => ({
+            allowlistRequests: s.allowlistRequests.map((req) =>
+              req.wallet === r.wallet_address ? { ...req, status: r.status as any, decidedAt: r.decided_at ? new Date(r.decided_at) : undefined } : req
+            ),
+          }));
+        }
+      })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "admin_wallets" }, (payload) => {
+        const wallet = (payload.new as any).wallet_address;
+        set((s) => s.adminWallets.includes(wallet) ? s : { adminWallets: [...s.adminWallets, wallet] });
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "admin_wallets" }, (payload) => {
+        const wallet = (payload.old as any).wallet_address;
+        set((s) => ({ adminWallets: s.adminWallets.filter((w) => w !== wallet) }));
+      })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "allowlist" }, (payload) => {
+        const wallet = (payload.new as any).wallet_address;
+        set((s) => s.allowlist.includes(wallet) ? s : { allowlist: [...s.allowlist, wallet] });
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "allowlist" }, (payload) => {
+        const wallet = (payload.old as any).wallet_address;
+        set((s) => ({ allowlist: s.allowlist.filter((w) => w !== wallet) }));
+      })
+      .subscribe();
   },
 
   adminWallets: [],
