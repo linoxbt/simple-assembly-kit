@@ -160,28 +160,6 @@ src/
 
 ---
 
-## Setup & Development
-
-```bash
-# Install dependencies
-bun install
-
-# Start development server
-bun dev
-
-# Build for production
-bun run build
-```
-
-### After Anchor Deployment
-
-1. Deploy the Anchor program to devnet
-2. Update `src/utils/constants.ts` with deployed program IDs
-3. Replace mock functions in `src/services/anchorProgram.ts` with real IDL calls
-4. Run `anchor run initialize` to set up the AllowList PDA
-
----
-
 ## Tokens on Devnet
 
 | Token | Source | Purpose |
