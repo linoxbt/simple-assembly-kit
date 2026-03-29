@@ -89,8 +89,7 @@ ratio < 120% ─────────────→   anyone can liquidate
 - **SPL Token-2022** — transfer hooks for compliance enforcement
 
 ### Oracles
-- **Pyth Network** (primary) — real-time XAU/USD, XAG/USD price feeds
-- **SIX BFI** (fallback) — Swiss financial data provider for institutional-grade pricing
+- **SIX BFI** — Swiss financial data provider for institutional-grade pricing
 
 ---
 
