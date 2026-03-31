@@ -13,7 +13,7 @@ import { useProtocolStore } from "@/stores/protocolStore";
 import { useVaultNotifications } from "@/hooks/useVaultNotifications";
 import { VaultState } from "@/hooks/useVault";
 import { formatUsd, formatOz, formatRatio } from "@/utils/format";
-import { TRAVEL_RULE_THRESHOLD, KYT_FLAG_THRESHOLD } from "@/utils/constants";
+import { TRAVEL_RULE_THRESHOLD, KYT_FLAG_THRESHOLD, SOLANA_NETWORK } from "@/utils/constants";
 import { depositCollateral, mintXusd, burnXusd } from "@/services/anchorProgram";
 import TravelRulePanel from "@/components/TravelRulePanel";
 import { toast } from "sonner";
@@ -21,9 +21,10 @@ import { toast } from "sonner";
 interface VaultDashboardProps {
   vault: VaultState;
   prices: { symbol: string; price: number; source: string }[];
+  onRefresh?: () => void;
 }
 
-const VaultDashboard = ({ vault, prices }: VaultDashboardProps) => {
+const VaultDashboard = ({ vault, prices, onRefresh }: VaultDashboardProps) => {
   const { publicKey, signTransaction, connected } = useWallet();
   const walletAddress = publicKey?.toBase58() ?? null;
   const isOnAllowlist = useProtocolStore((s) => s.isOnAllowlist(walletAddress));
@@ -41,11 +42,17 @@ const VaultDashboard = ({ vault, prices }: VaultDashboardProps) => {
   const mintAmount = parseFloat(mintUsd) || 0;
   const showTravelRule = mintAmount >= TRAVEL_RULE_THRESHOLD;
   const xagPrice = prices.find((p) => p.symbol === "XAG/USD")?.price ?? 0;
-
-  // Determine price source label
   const priceSource = prices.length > 0 ? prices[0].source : "SIX BFI";
 
-  const recordAction = async (type: "deposit" | "mint" | "burn", amount: number, unit: string, txSig: string) => {
+  const explorerTxUrl = (sig: string) =>
+    `https://explorer.solana.com/tx/${sig}?cluster=${SOLANA_NETWORK}`;
+
+  const recordAction = async (
+    type: "deposit" | "mint" | "burn",
+    amount: number,
+    unit: string,
+    txSig: string
+  ) => {
     await addTransaction({
       id: Date.now().toString(),
       type,
@@ -67,16 +74,28 @@ const VaultDashboard = ({ vault, prices }: VaultDashboardProps) => {
   };
 
   const handleDeposit = async () => {
-    if (!connected || !publicKey || !signTransaction) { toast.error("Connect your wallet first"); return; }
+    if (!connected || !publicKey || !signTransaction) {
+      toast.error("Connect your wallet first");
+      return;
+    }
     const oz = parseFloat(depositOz);
     if (!oz || oz <= 0) return;
     setLoading("deposit");
     try {
       const result = await depositCollateral(publicKey, oz, signTransaction);
-      if (result.success) {
-        toast.success(`Deposited ${oz} oz XAU`, { description: `TX: ${result.txSignature?.slice(0, 12)}…` });
-        await recordAction("deposit", oz, "oz XAU", result.txSignature ?? "");
+      if (result.success && result.txSignature) {
+        toast.success(`Deposited ${oz} oz XAU`, {
+          description: (
+            <a href={explorerTxUrl(result.txSignature)} target="_blank" rel="noopener noreferrer" className="underline">
+              View on Explorer →
+            </a>
+          ),
+        });
+        await recordAction("deposit", oz, "oz XAU", result.txSignature);
         setDepositOz("");
+        onRefresh?.();
+      } else {
+        toast.error("Deposit failed", { description: result.error });
       }
     } catch (err: any) {
       toast.error("Deposit failed", { description: err.message });
@@ -86,15 +105,27 @@ const VaultDashboard = ({ vault, prices }: VaultDashboardProps) => {
   };
 
   const handleMint = async () => {
-    if (!connected || !publicKey || !signTransaction) { toast.error("Connect your wallet first"); return; }
+    if (!connected || !publicKey || !signTransaction) {
+      toast.error("Connect your wallet first");
+      return;
+    }
     if (!mintAmount || mintAmount <= 0) return;
     setLoading("mint");
     try {
       const result = await mintXusd(publicKey, mintAmount, signTransaction);
-      if (result.success) {
-        toast.success(`Minted ${formatUsd(mintAmount)} xUSD`, { description: `TX: ${result.txSignature?.slice(0, 12)}…` });
-        await recordAction("mint", mintAmount, "xUSD", result.txSignature ?? "");
+      if (result.success && result.txSignature) {
+        toast.success(`Minted ${formatUsd(mintAmount)} xUSD`, {
+          description: (
+            <a href={explorerTxUrl(result.txSignature)} target="_blank" rel="noopener noreferrer" className="underline">
+              View on Explorer →
+            </a>
+          ),
+        });
+        await recordAction("mint", mintAmount, "xUSD", result.txSignature);
         setMintUsd("");
+        onRefresh?.();
+      } else {
+        toast.error("Mint failed", { description: result.error });
       }
     } catch (err: any) {
       toast.error("Mint failed", { description: err.message });
@@ -104,16 +135,28 @@ const VaultDashboard = ({ vault, prices }: VaultDashboardProps) => {
   };
 
   const handleBurn = async () => {
-    if (!connected || !publicKey || !signTransaction) { toast.error("Connect your wallet first"); return; }
+    if (!connected || !publicKey || !signTransaction) {
+      toast.error("Connect your wallet first");
+      return;
+    }
     const usd = parseFloat(burnUsd);
     if (!usd || usd <= 0) return;
     setLoading("burn");
     try {
       const result = await burnXusd(publicKey, usd, signTransaction);
-      if (result.success) {
-        toast.success(`Burned ${formatUsd(usd)} xUSD`, { description: `TX: ${result.txSignature?.slice(0, 12)}…` });
-        await recordAction("burn", usd, "xUSD", result.txSignature ?? "");
+      if (result.success && result.txSignature) {
+        toast.success(`Burned ${formatUsd(usd)} xUSD`, {
+          description: (
+            <a href={explorerTxUrl(result.txSignature)} target="_blank" rel="noopener noreferrer" className="underline">
+              View on Explorer →
+            </a>
+          ),
+        });
+        await recordAction("burn", usd, "xUSD", result.txSignature);
         setBurnUsd("");
+        onRefresh?.();
+      } else {
+        toast.error("Burn failed", { description: result.error });
       }
     } catch (err: any) {
       toast.error("Burn failed", { description: err.message });
@@ -122,11 +165,15 @@ const VaultDashboard = ({ vault, prices }: VaultDashboardProps) => {
     }
   };
 
-  const healthColor = vault.health === "healthy" || vault.health === "empty"
-    ? "text-primary"
-    : vault.health === "warning"
-    ? "text-accent"
-    : "text-destructive";
+  const healthColor =
+    vault.health === "healthy" || vault.health === "empty"
+      ? "text-primary"
+      : vault.health === "warning"
+      ? "text-accent"
+      : "text-destructive";
+
+  // Filter transactions to current wallet
+  const walletTxs = transactions.filter((t) => t.wallet === walletAddress);
 
   return (
     <div className="space-y-4">
@@ -150,19 +197,50 @@ const VaultDashboard = ({ vault, prices }: VaultDashboardProps) => {
         </div>
       )}
 
+      {/* Token Balances */}
+      {connected && (
+        <div className="grid grid-cols-2 gap-3">
+          <MetricCard
+            label="XAU Balance"
+            value={`${(vault.xauBalance ?? 0).toFixed(4)} oz`}
+            sub="in your wallet"
+          />
+          <MetricCard
+            label="xUSD Balance"
+            value={`${(vault.xusdBalance ?? 0).toFixed(2)}`}
+            sub="in your wallet"
+          />
+        </div>
+      )}
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <MetricCard label="Collateral" value={connected ? formatOz(vault.collateralOz) : "—"} sub={connected ? `≈${formatUsd(vault.collateralUsdValue)}` : "connect wallet"} />
-        <MetricCard label="xUSD Minted" value={connected ? formatUsd(vault.xusdDebt) : "—"} sub={connected ? "outstanding" : "connect wallet"} />
-        <MetricCard label="Collateral Ratio" value={connected ? formatRatio(vault.collateralRatio) : "—"} sub={connected ? vault.health.toUpperCase() : "connect wallet"} colorClass={healthColor} />
-        <MetricCard label="Max Mintable" value={connected ? formatUsd(vault.maxMintable) : "—"} sub="at 150% ratio" />
+        <MetricCard
+          label="Collateral (Locked)"
+          value={connected ? formatOz(vault.collateralOz) : "—"}
+          sub={connected ? `≈${formatUsd(vault.collateralUsdValue)}` : "connect wallet"}
+        />
+        <MetricCard
+          label="xUSD Minted"
+          value={connected ? formatUsd(vault.xusdDebt) : "—"}
+          sub={connected ? "outstanding debt" : "connect wallet"}
+        />
+        <MetricCard
+          label="Collateral Ratio"
+          value={connected ? formatRatio(vault.collateralRatio) : "—"}
+          sub={connected ? vault.health.toUpperCase() : "connect wallet"}
+          colorClass={healthColor}
+        />
+        <MetricCard
+          label="Max Mintable"
+          value={connected ? formatUsd(vault.maxMintable) : "—"}
+          sub="at 150% ratio"
+        />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4">
           <RatioGauge ratio={connected ? vault.collateralRatio : 0} health={connected ? vault.health : "empty"} />
-
           <PriceHistoryChart currentPrice={vault.xauPriceUsd} />
-
           <ProtocolDiagram />
 
           {/* Deposit */}
@@ -199,7 +277,7 @@ const VaultDashboard = ({ vault, prices }: VaultDashboardProps) => {
             </div>
           </div>
 
-          <TransactionHistoryPanel transactions={transactions} />
+          <TransactionHistoryPanel transactions={walletTxs} />
         </div>
 
         <div className="space-y-4">

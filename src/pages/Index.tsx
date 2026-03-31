@@ -12,8 +12,8 @@ import { useProtocolStore } from "@/stores/protocolStore";
 
 const Index = () => {
   const { prices, feeds, primarySource } = usePriceFeed();
-  const xauPrice = feeds.find((f) => f.symbol === "XAU/USD")?.price ?? 3022.45;
-  const { vault } = useVault(xauPrice);
+  const xauPrice = feeds.find((f) => f.symbol === "XAU/USD")?.price ?? 0;
+  const { vault, refresh } = useVault(xauPrice);
   const [activeTab, setActiveTab] = useState("vault");
   const initialized = useProtocolStore((s) => s.initialized);
   const initializeStore = useProtocolStore((s) => s.initializeStore);
@@ -40,7 +40,7 @@ const Index = () => {
       />
 
       <main className="flex-1 container mx-auto px-4 py-6">
-        {activeTab === "vault" && <VaultDashboard vault={vault} prices={prices} />}
+        {activeTab === "vault" && <VaultDashboard vault={vault} prices={prices} onRefresh={refresh} />}
         {activeTab === "admin" && <AdminPanel />}
         {activeTab === "explorer" && <ExplorerPanel />}
       </main>
