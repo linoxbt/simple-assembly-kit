@@ -5,7 +5,7 @@ const POLL_INTERVAL_MS = 15_000; // 15 seconds
 
 export function usePriceFeed() {
   const [feeds, setFeeds] = useState<PriceFeedData[]>([]);
-  const [primarySource, setPrimarySource] = useState<"Pyth" | "SIX BFI">("SIX BFI");
+  const [primarySource, setPrimarySource] = useState<string>("Pyth");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);

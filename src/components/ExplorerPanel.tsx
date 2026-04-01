@@ -2,7 +2,16 @@ import { useState } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { formatUsd, formatOz, formatRatio, formatTime, shortenAddress } from "@/utils/format";
 import { useProtocolStore } from "@/stores/protocolStore";
-import { fetchVaultState, fetchTokenBalance, COLLATERAL_MINT_PK, XUSD_MINT_PK, connection } from "@/services/anchorProgram";
+import {
+  fetchVaultAccount,
+  fetchTokenBalance,
+  fetchPriceAccount,
+  fetchAllowlistAccount,
+  COLLATERAL_MINT_PK,
+  XUSD_MINT_PK,
+  connection,
+  deriveTravelRulePda,
+} from "@/services/anchorProgram";
 import { SOLANA_NETWORK } from "@/utils/constants";
 import { toast } from "sonner";
 
@@ -11,60 +20,70 @@ const ExplorerPanel = () => {
   const [vaultQuery, setVaultQuery] = useState("");
   const [travelQuery, setTravelQuery] = useState("");
   const [queriedVault, setQueriedVault] = useState<null | {
+    exists: boolean;
     collateral: number;
     xusd: number;
     ratio: number;
     health: string;
+    isLiquidated: boolean;
     xauBalance: number;
     xusdBalance: number;
+    lastUpdated: string;
+  }>(null);
+  const [queriedTravel, setQueriedTravel] = useState<null | {
+    exists: boolean;
+    amount?: number;
+    from?: string;
+    to?: string;
+    timestamp?: string;
   }>(null);
   const [vaultLoading, setVaultLoading] = useState(false);
+  const [travelLoading, setTravelLoading] = useState(false);
   const [vaultError, setVaultError] = useState<string | null>(null);
 
   const handleVaultQuery = async () => {
     const addr = vaultQuery.trim();
     if (!addr) return;
-
     setVaultLoading(true);
     setVaultError(null);
     setQueriedVault(null);
-
     try {
       const pubkey = new PublicKey(addr);
-      const [vaultData, xauBal, xusdBal] = await Promise.all([
-        fetchVaultState(pubkey),
+      const [vaultData, xauBal, xusdBal, priceData] = await Promise.all([
+        fetchVaultAccount(pubkey),
         fetchTokenBalance(pubkey, COLLATERAL_MINT_PK),
         fetchTokenBalance(pubkey, XUSD_MINT_PK),
+        fetchPriceAccount("XAU/USD"),
       ]);
 
       if (!vaultData) {
         setQueriedVault({
+          exists: false,
           collateral: 0,
           xusd: 0,
           ratio: 0,
           health: "NO VAULT",
+          isLiquidated: false,
           xauBalance: xauBal,
           xusdBalance: xusdBal,
+          lastUpdated: "",
         });
       } else {
-        const ratio = vaultData.xusdDebt > 0
-          ? (vaultData.collateralOz * 3000 / vaultData.xusdDebt) * 100
-          : 0;
-        const health = vaultData.xusdDebt === 0
-          ? "EMPTY"
-          : ratio <= 120
-          ? "LIQUIDATABLE"
-          : ratio <= 150
-          ? "DANGER"
-          : "HEALTHY";
+        const price = priceData?.price ?? 0;
+        const collateralUsd = vaultData.collateralAmount * price;
+        const ratio = vaultData.xusdMinted > 0 ? (collateralUsd / vaultData.xusdMinted) * 100 : 0;
+        const health = vaultData.isLiquidated ? "LIQUIDATED" : vaultData.xusdMinted === 0 ? "EMPTY" : ratio <= 120 ? "LIQUIDATABLE" : ratio <= 150 ? "DANGER" : "HEALTHY";
 
         setQueriedVault({
-          collateral: vaultData.collateralOz,
-          xusd: vaultData.xusdDebt,
+          exists: true,
+          collateral: vaultData.collateralAmount,
+          xusd: vaultData.xusdMinted,
           ratio,
           health,
+          isLiquidated: vaultData.isLiquidated,
           xauBalance: xauBal,
           xusdBalance: xusdBal,
+          lastUpdated: new Date(vaultData.lastUpdated * 1000).toLocaleString(),
         });
       }
     } catch (err: any) {
@@ -74,11 +93,46 @@ const ExplorerPanel = () => {
     }
   };
 
-  const explorerUrl = (sig: string) =>
-    `https://explorer.solana.com/tx/${sig}?cluster=${SOLANA_NETWORK}`;
+  const handleTravelQuery = async () => {
+    const input = travelQuery.trim();
+    if (!input) return;
+    setTravelLoading(true);
+    setQueriedTravel(null);
+    try {
+      // Try to parse as hex transfer ID
+      const idBytes = new Uint8Array(32);
+      const hexClean = input.replace(/^0x/, "");
+      for (let i = 0; i < Math.min(hexClean.length / 2, 32); i++) {
+        idBytes[i] = parseInt(hexClean.substr(i * 2, 2), 16);
+      }
+      const [trPda] = deriveTravelRulePda(idBytes);
+      const info = await connection.getAccountInfo(trPda);
+      if (!info || !info.data || info.data.length < 8) {
+        setQueriedTravel({ exists: false });
+      } else {
+        const data = info.data.slice(8);
+        // Parse: transferId(32) + originatorName(64) + originatorVasp(64) + beneficiaryName(64) + beneficiaryVasp(64) + amount(8) + from(32) + to(32) + timestamp(8) + bump(1)
+        const amount = Number(data.readBigUInt64LE(288)) / 1_000_000;
+        const from = new PublicKey(data.slice(296, 328)).toBase58();
+        const to = new PublicKey(data.slice(328, 360)).toBase58();
+        const timestamp = Number(data.readBigInt64LE(360));
+        setQueriedTravel({
+          exists: true,
+          amount,
+          from,
+          to,
+          timestamp: new Date(timestamp * 1000).toLocaleString(),
+        });
+      }
+    } catch {
+      setQueriedTravel({ exists: false });
+    } finally {
+      setTravelLoading(false);
+    }
+  };
 
-  const walletExplorerUrl = (addr: string) =>
-    `https://explorer.solana.com/address/${addr}?cluster=${SOLANA_NETWORK}`;
+  const explorerUrl = (sig: string) => `https://explorer.solana.com/tx/${sig}?cluster=${SOLANA_NETWORK}`;
+  const walletExplorerUrl = (addr: string) => `https://explorer.solana.com/address/${addr}?cluster=${SOLANA_NETWORK}`;
 
   return (
     <div className="space-y-4">
@@ -87,41 +141,38 @@ const ExplorerPanel = () => {
         <div className="bg-card border border-card-border rounded-lg p-4 card-glow">
           <div className="text-[10px] text-muted-foreground tracking-widest uppercase mb-3">On-Chain Vault Lookup</div>
           <div className="flex gap-2 mb-3">
-            <input
-              placeholder="Wallet address (Base58)"
-              value={vaultQuery}
-              onChange={(e) => setVaultQuery(e.target.value)}
-              className="flex-1 bg-surface border border-card-border rounded px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
-            />
-            <button
-              onClick={handleVaultQuery}
-              disabled={vaultLoading}
-              className="px-4 py-2 text-xs border border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors rounded tracking-wider font-medium disabled:opacity-30"
-            >
+            <input placeholder="Wallet address (Base58)" value={vaultQuery} onChange={(e) => setVaultQuery(e.target.value)} className="flex-1 bg-surface border border-card-border rounded px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none" />
+            <button onClick={handleVaultQuery} disabled={vaultLoading} className="px-4 py-2 text-xs border border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors rounded tracking-wider font-medium disabled:opacity-30">
               {vaultLoading ? "QUERYING…" : "QUERY"}
             </button>
           </div>
-          {vaultError && (
-            <div className="text-xs text-destructive text-center py-3">{vaultError}</div>
-          )}
+          {vaultError && <div className="text-xs text-destructive text-center py-3">{vaultError}</div>}
           {queriedVault && (
             <div className="space-y-2 text-xs">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Vault Status</span>
-                <span className="text-primary">{queriedVault.health}</span>
+                <span className={queriedVault.isLiquidated ? "text-destructive" : "text-primary"}>{queriedVault.health}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Locked Collateral</span>
-                <span className="text-primary">{formatOz(queriedVault.collateral)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">xUSD Debt</span>
-                <span>{formatUsd(queriedVault.xusd)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Collateral Ratio</span>
-                <span className="text-primary">{queriedVault.ratio > 0 ? formatRatio(queriedVault.ratio) : "N/A"}</span>
-              </div>
+              {queriedVault.exists && (
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Locked Collateral</span>
+                    <span className="text-primary">{formatOz(queriedVault.collateral)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">xUSD Debt</span>
+                    <span>{formatUsd(queriedVault.xusd)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Collateral Ratio</span>
+                    <span className="text-primary">{queriedVault.ratio > 0 ? formatRatio(queriedVault.ratio) : "N/A"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Last Updated</span>
+                    <span className="text-muted-foreground">{queriedVault.lastUpdated}</span>
+                  </div>
+                </>
+              )}
               <div className="border-t border-card-border pt-2 mt-2">
                 <div className="text-[10px] text-muted-foreground tracking-widest uppercase mb-1">Wallet Balances</div>
                 <div className="flex justify-between">
@@ -133,12 +184,7 @@ const ExplorerPanel = () => {
                   <span>{queriedVault.xusdBalance.toFixed(2)}</span>
                 </div>
               </div>
-              <a
-                href={walletExplorerUrl(vaultQuery.trim())}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block text-[10px] text-primary hover:underline tracking-wider text-center mt-2"
-              >
+              <a href={walletExplorerUrl(vaultQuery.trim())} target="_blank" rel="noopener noreferrer" className="block text-[10px] text-primary hover:underline tracking-wider text-center mt-2">
                 VIEW ON SOLANA EXPLORER →
               </a>
             </div>
@@ -149,16 +195,25 @@ const ExplorerPanel = () => {
         <div className="bg-card border border-card-border rounded-lg p-4 card-glow">
           <div className="text-[10px] text-muted-foreground tracking-widest uppercase mb-3">Travel Rule Lookup</div>
           <div className="flex gap-2 mb-3">
-            <input
-              placeholder="Transfer ID or PDA"
-              value={travelQuery}
-              onChange={(e) => setTravelQuery(e.target.value)}
-              className="flex-1 bg-surface border border-card-border rounded px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none"
-            />
-            <button className="px-4 py-2 text-xs border border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors rounded tracking-wider font-medium">
-              QUERY
+            <input placeholder="Transfer ID (hex)" value={travelQuery} onChange={(e) => setTravelQuery(e.target.value)} className="flex-1 bg-surface border border-card-border rounded px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none" />
+            <button onClick={handleTravelQuery} disabled={travelLoading} className="px-4 py-2 text-xs border border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors rounded tracking-wider font-medium disabled:opacity-30">
+              {travelLoading ? "QUERYING…" : "QUERY"}
             </button>
           </div>
+          {queriedTravel && (
+            <div className="text-xs">
+              {!queriedTravel.exists ? (
+                <div className="text-muted-foreground text-center py-3">No record found for this transfer ID</div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex justify-between"><span className="text-muted-foreground">Amount</span><span>{formatUsd(queriedTravel.amount ?? 0)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">From</span><span className="font-mono">{shortenAddress(queriedTravel.from ?? "", 6)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">To</span><span className="font-mono">{shortenAddress(queriedTravel.to ?? "", 6)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Time</span><span>{queriedTravel.timestamp}</span></div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -220,9 +275,7 @@ const ExplorerPanel = () => {
                     <td className="py-2">{e.amount}</td>
                     <td className="py-2 text-muted-foreground">{shortenAddress(e.wallet)}</td>
                     <td className="py-2">
-                      {e.flagged && (
-                        <span className="text-accent border border-accent/40 px-1.5 py-0.5 rounded text-[10px]">⚠ $10K+</span>
-                      )}
+                      {e.flagged && <span className="text-accent border border-accent/40 px-1.5 py-0.5 rounded text-[10px]">⚠ $10K+</span>}
                     </td>
                   </tr>
                 ))}
@@ -231,35 +284,6 @@ const ExplorerPanel = () => {
           )}
         </div>
       </div>
-
-      {/* Travel Rule Records */}
-      {travelRuleRecords.length > 0 && (
-        <div className="bg-card border border-card-border rounded-lg p-4 card-glow overflow-x-auto">
-          <div className="text-[10px] text-muted-foreground tracking-widest uppercase mb-3">Travel Rule Records</div>
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-card-border text-muted-foreground">
-                <th className="text-left py-2">ID</th>
-                <th className="text-left py-2">AMOUNT</th>
-                <th className="text-left py-2">ORIG VASP</th>
-                <th className="text-left py-2">BENE VASP</th>
-                <th className="text-left py-2">PDA</th>
-              </tr>
-            </thead>
-            <tbody>
-              {travelRuleRecords.map((r, i) => (
-                <tr key={i} className="border-b border-card-border/30">
-                  <td className="py-2 text-primary">{shortenAddress(r.id)}</td>
-                  <td className="py-2">{formatUsd(r.amount)}</td>
-                  <td className="py-2">{r.origVasp}</td>
-                  <td className="py-2">{r.beneVasp}</td>
-                  <td className="py-2 text-muted-foreground">{shortenAddress(r.pda)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
     </div>
   );
 };
