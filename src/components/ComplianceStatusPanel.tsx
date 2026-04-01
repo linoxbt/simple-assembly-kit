@@ -5,12 +5,21 @@ interface ComplianceStatusPanelProps {
   xauPrice: number;
   xagPrice: number;
   priceSource: string;
+  priceIsStale?: boolean;
+  priceNotInitialized?: boolean;
 }
 
-const ComplianceStatusPanel = ({ isKycVerified, xauPrice, xagPrice, priceSource }: ComplianceStatusPanelProps) => {
+const ComplianceStatusPanel = ({
+  isKycVerified,
+  xauPrice,
+  xagPrice,
+  priceSource,
+  priceIsStale,
+  priceNotInitialized,
+}: ComplianceStatusPanelProps) => {
   const items = [
-    { label: "KYC", verified: isKycVerified },
-    { label: "AML", verified: true },
+    { label: "KYC", verified: isKycVerified, text: isKycVerified ? "VERIFIED" : "NOT VERIFIED" },
+    { label: "AML", verified: true, text: "ACTIVE" },
     { label: "KYT", verified: true, text: "ACTIVE" },
     { label: "Travel Rule", verified: true, text: "ACTIVE" },
   ];
@@ -23,9 +32,7 @@ const ComplianceStatusPanel = ({ isKycVerified, xauPrice, xagPrice, priceSource 
         {items.map((item) => (
           <div key={item.label} className="flex items-center justify-between text-xs">
             <span className="text-muted-foreground">{item.label}</span>
-            <span className={item.verified ? "text-primary" : "text-destructive"}>
-              {item.text || (item.verified ? "VERIFIED" : "NOT VERIFIED")}
-            </span>
+            <span className={item.verified ? "text-primary" : "text-destructive"}>{item.text}</span>
           </div>
         ))}
       </div>
@@ -34,17 +41,18 @@ const ComplianceStatusPanel = ({ isKycVerified, xauPrice, xagPrice, priceSource 
         <div className="text-[10px] text-muted-foreground tracking-widest uppercase mb-2">Oracle Status</div>
         <div className="space-y-1 text-xs">
           <div className="flex justify-between">
-            <span className="text-muted-foreground">XAU</span>
+            <span className="text-muted-foreground">XAU/USD</span>
             <span>
-              <span className="text-primary">{formatUsd(xauPrice)}</span>
-              <span className="text-primary/70 ml-2 text-[10px]">{priceSource} LIVE</span>
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">XAG</span>
-            <span>
-              <span className="text-primary">{formatUsd(xagPrice)}</span>
-              <span className="text-primary/70 ml-2 text-[10px]">{priceSource} LIVE</span>
+              {priceNotInitialized ? (
+                <span className="text-accent text-[10px]">NOT INITIALISED</span>
+              ) : (
+                <>
+                  <span className="text-primary">{formatUsd(xauPrice)}</span>
+                  <span className={`ml-2 text-[10px] ${priceIsStale ? "text-accent" : "text-primary/70"}`}>
+                    {priceIsStale ? "STALE" : `${priceSource} LIVE`}
+                  </span>
+                </>
+              )}
             </span>
           </div>
         </div>

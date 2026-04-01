@@ -1,19 +1,19 @@
 import { useState, useEffect } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
 import Header from "@/components/Header";
 import PriceTicker from "@/components/PriceTicker";
 import VaultDashboard from "@/components/VaultDashboard";
 import AdminPanel from "@/components/AdminPanel";
 import ExplorerPanel from "@/components/ExplorerPanel";
 import Footer from "@/components/Footer";
-import LoadingScreen from "@/components/LoadingScreen";
 import { useVault } from "@/hooks/useVault";
 import { usePriceFeed } from "@/hooks/usePriceFeed";
 import { useProtocolStore } from "@/stores/protocolStore";
 
 const Index = () => {
+  const { connected } = useWallet();
   const { prices, feeds, primarySource } = usePriceFeed();
-  const xauPrice = feeds.find((f) => f.symbol === "XAU/USD")?.price ?? 0;
-  const { vault, refresh } = useVault(xauPrice);
+  const { vault, refresh } = useVault();
   const [activeTab, setActiveTab] = useState("vault");
   const initialized = useProtocolStore((s) => s.initialized);
   const initializeStore = useProtocolStore((s) => s.initializeStore);
@@ -22,19 +22,20 @@ const Index = () => {
     initializeStore();
   }, [initializeStore]);
 
-  if (!initialized) {
-    return <LoadingScreen />;
-  }
+  // Use on-chain price if available, otherwise Pyth feed
+  const displayPrice = vault.xauPriceUsd > 0
+    ? vault.xauPriceUsd
+    : feeds.find((f) => f.symbol === "XAU/USD")?.price ?? 0;
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <div className="scanline-overlay" />
 
-      <PriceTicker prices={prices} />
+      {prices.length > 0 && <PriceTicker prices={prices} />}
 
       <Header
-        xauPrice={vault.xauPriceUsd}
-        priceSource={primarySource}
+        xauPrice={displayPrice}
+        priceSource={vault.priceFromSix ? "SIX BFI (On-Chain)" : primarySource}
         activeTab={activeTab}
         onTabChange={setActiveTab}
       />

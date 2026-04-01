@@ -1,12 +1,19 @@
 import { useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
+import { PublicKey } from "@solana/web3.js";
 import { useProtocolStore } from "@/stores/protocolStore";
+import {
+  addToAllowlistOnChain,
+  removeFromAllowlistOnChain,
+  fetchAllowlistAccount,
+  parseProgramError,
+} from "@/services/anchorProgram";
 import { AML_REASONS, AmlReason } from "@/utils/constants";
 import { shortenAddress } from "@/utils/format";
 import { toast } from "sonner";
 
 const AdminPanel = () => {
-  const { publicKey } = useWallet();
+  const { publicKey, signTransaction } = useWallet();
   const walletAddress = publicKey?.toBase58() ?? "";
   const isAdmin = useProtocolStore((s) => s.isAdmin(walletAddress));
 
@@ -22,6 +29,9 @@ const AdminPanel = () => {
   const [amlAddress, setAmlAddress] = useState("");
   const [amlScoreVal, setAmlScoreVal] = useState(25);
   const [amlReason, setAmlReason] = useState<AmlReason>("CLEAN");
+  const [loading, setLoading] = useState<string | null>(null);
+  const [txStatus, setTxStatus] = useState<string | null>(null);
+  const [onChainMembers, setOnChainMembers] = useState<string[]>([]);
 
   // Guard: only admins can see this panel
   if (!isAdmin) {
@@ -33,11 +43,96 @@ const AdminPanel = () => {
     );
   }
 
+  const refreshOnChainAllowlist = async () => {
+    const data = await fetchAllowlistAccount();
+    if (data) {
+      setOnChainMembers(data.members.map((m) => m.toBase58()));
+    }
+  };
+
+  const handleAddToAllowlistOnChain = async () => {
+    if (!newAddress.trim() || !publicKey || !signTransaction) return;
+    setLoading("add-allowlist");
+    setTxStatus("Waiting for wallet approval...");
+    try {
+      const memberPk = new PublicKey(newAddress.trim());
+      const result = await addToAllowlistOnChain(publicKey, memberPk, signTransaction);
+      if (result.success) {
+        setTxStatus(`Confirmed ✓ tx: ${result.txSignature?.slice(0, 8)}...`);
+        toast.success(`Added ${shortenAddress(newAddress)} to on-chain allowlist`);
+        // Also save to database
+        await addToAllowlist(newAddress.trim(), walletAddress);
+        setNewAddress("");
+        refreshOnChainAllowlist();
+      } else {
+        setTxStatus(`Error: ${result.error}`);
+        toast.error("Failed", { description: result.error });
+      }
+    } catch (err: any) {
+      const msg = parseProgramError(err);
+      setTxStatus(`Error: ${msg}`);
+      toast.error("Failed", { description: msg });
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleRemoveFromAllowlistOnChain = async (addr: string) => {
+    if (!publicKey || !signTransaction) return;
+    setLoading(`remove-${addr}`);
+    try {
+      const memberPk = new PublicKey(addr);
+      const result = await removeFromAllowlistOnChain(publicKey, memberPk, signTransaction);
+      if (result.success) {
+        toast.success(`Removed ${shortenAddress(addr)} from on-chain allowlist`);
+        await removeFromAllowlist(addr);
+        refreshOnChainAllowlist();
+      } else {
+        toast.error("Failed", { description: result.error });
+      }
+    } catch (err: any) {
+      toast.error("Failed", { description: parseProgramError(err) });
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleApproveRequest = async (wallet: string) => {
+    if (!publicKey || !signTransaction) return;
+    setLoading(`approve-${wallet}`);
+    try {
+      const memberPk = new PublicKey(wallet);
+      const result = await addToAllowlistOnChain(publicKey, memberPk, signTransaction);
+      if (result.success) {
+        await approveRequest(wallet);
+        toast.success(`Approved & added ${shortenAddress(wallet)} on-chain`);
+        refreshOnChainAllowlist();
+      } else {
+        toast.error("On-chain tx failed", { description: result.error });
+      }
+    } catch (err: any) {
+      toast.error("Failed", { description: parseProgramError(err) });
+    } finally {
+      setLoading(null);
+    }
+  };
+
   const riskLabel = amlScoreVal <= 30 ? "LOW" : amlScoreVal <= 70 ? "MEDIUM" : "HIGH — BLOCKED";
   const pendingRequests = allowlistRequests.filter((r) => r.status === "pending");
 
   return (
     <div className="space-y-4">
+      {/* Tx Status */}
+      {txStatus && (
+        <div className={`text-xs tracking-wider text-center py-2 rounded border ${
+          txStatus.startsWith("Confirmed") ? "border-primary/40 text-primary bg-primary/5" :
+          txStatus.startsWith("Error") ? "border-destructive/40 text-destructive bg-destructive/5" :
+          "border-accent/40 text-accent bg-accent/5"
+        }`}>
+          {txStatus}
+        </div>
+      )}
+
       {/* Allowlist Requests */}
       {pendingRequests.length > 0 && (
         <div className="bg-card border border-primary/30 rounded-lg p-4 card-glow">
@@ -50,7 +145,13 @@ const AdminPanel = () => {
               <div key={req.wallet} className="flex items-center justify-between bg-surface rounded px-3 py-2 text-xs">
                 <span className="text-foreground font-mono">{shortenAddress(req.wallet, 6)}</span>
                 <div className="flex gap-2">
-                  <button onClick={async () => { await approveRequest(req.wallet); toast.success(`Approved ${shortenAddress(req.wallet)}`); }} className="text-primary hover:underline text-[10px] tracking-wider">APPROVE</button>
+                  <button
+                    onClick={() => handleApproveRequest(req.wallet)}
+                    disabled={loading === `approve-${req.wallet}`}
+                    className="text-primary hover:underline text-[10px] tracking-wider disabled:opacity-30"
+                  >
+                    {loading === `approve-${req.wallet}` ? "SENDING TX…" : "APPROVE (ON-CHAIN)"}
+                  </button>
                   <button onClick={async () => { await rejectRequest(req.wallet); toast.success(`Rejected ${shortenAddress(req.wallet)}`); }} className="text-destructive hover:underline text-[10px] tracking-wider">REJECT</button>
                 </div>
               </div>
@@ -87,15 +188,17 @@ const AdminPanel = () => {
           </div>
         </div>
 
-        {/* KYC Allowlist */}
+        {/* KYC Allowlist — ON-CHAIN */}
         <div className="bg-card border border-card-border rounded-lg p-4 card-glow">
           <div className="flex items-center justify-between mb-4">
-            <div className="text-[10px] text-muted-foreground tracking-widest uppercase">KYC Allowlist Management</div>
-            <span className="text-[10px] text-muted-foreground">{allowlist.length} members</span>
+            <div className="text-[10px] text-muted-foreground tracking-widest uppercase">KYC Allowlist (On-Chain + DB)</div>
+            <button onClick={refreshOnChainAllowlist} className="text-[10px] text-primary hover:underline tracking-wider">REFRESH</button>
           </div>
           <div className="flex gap-2 mb-4">
             <input placeholder="Wallet address" value={newAddress} onChange={(e) => setNewAddress(e.target.value)} className="flex-1 bg-surface border border-card-border rounded px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none" />
-            <button onClick={async () => { if (newAddress.trim()) { await addToAllowlist(newAddress.trim(), walletAddress); setNewAddress(""); toast.success("Address added to AllowList"); } }} className="px-4 py-2 text-xs border border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors rounded tracking-wider font-medium">ADD +</button>
+            <button onClick={handleAddToAllowlistOnChain} disabled={loading === "add-allowlist"} className="px-4 py-2 text-xs border border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors rounded tracking-wider font-medium disabled:opacity-30">
+              {loading === "add-allowlist" ? "TX…" : "ADD ON-CHAIN +"}
+            </button>
           </div>
           <div className="space-y-2 max-h-48 overflow-y-auto">
             {allowlist.length === 0 ? (
@@ -104,7 +207,16 @@ const AdminPanel = () => {
               allowlist.map((addr) => (
                 <div key={addr} className="flex items-center justify-between bg-surface rounded px-3 py-2 text-xs">
                   <span className="text-foreground font-mono">{shortenAddress(addr, 6)}</span>
-                  <button onClick={async () => { await removeFromAllowlist(addr); toast.success("Address removed from AllowList"); }} className="text-destructive hover:underline text-[10px] tracking-wider">REVOKE</button>
+                  <div className="flex items-center gap-2">
+                    {onChainMembers.includes(addr) && <span className="text-[10px] text-primary">ON-CHAIN</span>}
+                    <button
+                      onClick={() => handleRemoveFromAllowlistOnChain(addr)}
+                      disabled={loading === `remove-${addr}`}
+                      className="text-destructive hover:underline text-[10px] tracking-wider disabled:opacity-30"
+                    >
+                      REVOKE
+                    </button>
+                  </div>
                 </div>
               ))
             )}
@@ -123,9 +235,6 @@ const AdminPanel = () => {
               <span className={`font-semibold ${amlScoreVal <= 30 ? "text-primary" : amlScoreVal <= 70 ? "text-accent" : "text-destructive"}`}>{amlScoreVal}/100 — {riskLabel}</span>
             </div>
             <input type="range" min={0} max={100} value={amlScoreVal} onChange={(e) => setAmlScoreVal(parseInt(e.target.value))} className="w-full accent-primary" />
-            <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
-              <span>0</span><span>50</span><span>100</span>
-            </div>
           </div>
           <select value={amlReason} onChange={(e) => setAmlReason(e.target.value as AmlReason)} className="w-full bg-surface border border-card-border rounded px-3 py-2 text-xs text-foreground mb-4 focus:outline-none">
             {AML_REASONS.map((r) => <option key={r} value={r}>{r.replace(/_/g, " ")}</option>)}

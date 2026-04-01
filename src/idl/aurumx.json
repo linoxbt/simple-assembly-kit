@@ -1,0 +1,220 @@
+{
+  "version": "0.1.0",
+  "name": "aurumx",
+  "instructions": [
+    {
+      "name": "initialize",
+      "accounts": [
+        {"name": "admin", "isMut": true, "isSigner": true},
+        {"name": "allowlist", "isMut": true, "isSigner": false},
+        {"name": "systemProgram", "isMut": false, "isSigner": false}
+      ],
+      "args": []
+    },
+    {
+      "name": "addToAllowlist",
+      "accounts": [
+        {"name": "admin", "isMut": false, "isSigner": true},
+        {"name": "allowlist", "isMut": true, "isSigner": false}
+      ],
+      "args": [{"name": "member", "type": "publicKey"}]
+    },
+    {
+      "name": "removeFromAllowlist",
+      "accounts": [
+        {"name": "admin", "isMut": false, "isSigner": true},
+        {"name": "allowlist", "isMut": true, "isSigner": false}
+      ],
+      "args": [{"name": "member", "type": "publicKey"}]
+    },
+    {
+      "name": "updatePrice",
+      "accounts": [
+        {"name": "keeper", "isMut": true, "isSigner": true},
+        {"name": "priceAccount", "isMut": true, "isSigner": false},
+        {"name": "systemProgram", "isMut": false, "isSigner": false}
+      ],
+      "args": [
+        {"name": "asset", "type": {"array": ["u8", 8]}},
+        {"name": "price", "type": "u64"},
+        {"name": "publishedAt", "type": "i64"},
+        {"name": "fromSix", "type": "bool"}
+      ]
+    },
+    {
+      "name": "deposit",
+      "accounts": [
+        {"name": "owner", "isMut": true, "isSigner": true},
+        {"name": "vault", "isMut": true, "isSigner": false},
+        {"name": "allowlist", "isMut": false, "isSigner": false},
+        {"name": "ownerCollateralAta", "isMut": true, "isSigner": false},
+        {"name": "vaultCollateralAta", "isMut": true, "isSigner": false},
+        {"name": "collateralMint", "isMut": false, "isSigner": false},
+        {"name": "tokenProgram", "isMut": false, "isSigner": false},
+        {"name": "systemProgram", "isMut": false, "isSigner": false}
+      ],
+      "args": [{"name": "amount", "type": "u64"}]
+    },
+    {
+      "name": "mintXusd",
+      "accounts": [
+        {"name": "owner", "isMut": true, "isSigner": true},
+        {"name": "vault", "isMut": true, "isSigner": false},
+        {"name": "allowlist", "isMut": false, "isSigner": false},
+        {"name": "priceFeed", "isMut": false, "isSigner": false},
+        {"name": "xusdMint", "isMut": true, "isSigner": false},
+        {"name": "ownerXusdAta", "isMut": true, "isSigner": false},
+        {"name": "mintAuthority", "isMut": false, "isSigner": false},
+        {"name": "tokenProgram", "isMut": false, "isSigner": false},
+        {"name": "systemProgram", "isMut": false, "isSigner": false}
+      ],
+      "args": [{"name": "amount", "type": "u64"}]
+    },
+    {
+      "name": "burnXusd",
+      "accounts": [
+        {"name": "owner", "isMut": true, "isSigner": true},
+        {"name": "vault", "isMut": true, "isSigner": false},
+        {"name": "allowlist", "isMut": false, "isSigner": false},
+        {"name": "xusdMint", "isMut": true, "isSigner": false},
+        {"name": "ownerXusdAta", "isMut": true, "isSigner": false},
+        {"name": "vaultCollateralAta", "isMut": true, "isSigner": false},
+        {"name": "ownerCollateralAta", "isMut": true, "isSigner": false},
+        {"name": "collateralMint", "isMut": false, "isSigner": false},
+        {"name": "vaultSigner", "isMut": false, "isSigner": false},
+        {"name": "tokenProgram", "isMut": false, "isSigner": false},
+        {"name": "systemProgram", "isMut": false, "isSigner": false}
+      ],
+      "args": [{"name": "xusdAmount", "type": "u64"}]
+    },
+    {
+      "name": "liquidate",
+      "accounts": [
+        {"name": "liquidator", "isMut": true, "isSigner": true},
+        {"name": "vault", "isMut": true, "isSigner": false},
+        {"name": "allowlist", "isMut": false, "isSigner": false},
+        {"name": "priceFeed", "isMut": false, "isSigner": false},
+        {"name": "xusdMint", "isMut": true, "isSigner": false},
+        {"name": "liquidatorXusdAta", "isMut": true, "isSigner": false},
+        {"name": "vaultCollateralAta", "isMut": true, "isSigner": false},
+        {"name": "liquidatorCollateralAta", "isMut": true, "isSigner": false},
+        {"name": "collateralMint", "isMut": false, "isSigner": false},
+        {"name": "vaultSigner", "isMut": false, "isSigner": false},
+        {"name": "tokenProgram", "isMut": false, "isSigner": false},
+        {"name": "systemProgram", "isMut": false, "isSigner": false}
+      ],
+      "args": []
+    },
+    {
+      "name": "transferXusd",
+      "accounts": [
+        {"name": "sender", "isMut": true, "isSigner": true},
+        {"name": "allowlist", "isMut": false, "isSigner": false},
+        {"name": "senderXusdAta", "isMut": true, "isSigner": false},
+        {"name": "recipientXusdAta", "isMut": true, "isSigner": false},
+        {"name": "xusdMint", "isMut": false, "isSigner": false},
+        {"name": "travelRuleRecord", "isMut": true, "isSigner": false},
+        {"name": "tokenProgram", "isMut": false, "isSigner": false},
+        {"name": "systemProgram", "isMut": false, "isSigner": false}
+      ],
+      "args": [
+        {"name": "transferId", "type": {"array": ["u8", 32]}},
+        {"name": "amount", "type": "u64"},
+        {"name": "originatorName", "type": {"array": ["u8", 64]}},
+        {"name": "originatorVasp", "type": {"array": ["u8", 64]}},
+        {"name": "beneficiaryName", "type": {"array": ["u8", 64]}},
+        {"name": "beneficiaryVasp", "type": {"array": ["u8", 64]}}
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Vault",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {"name": "owner", "type": "publicKey"},
+          {"name": "collateralMint", "type": "publicKey"},
+          {"name": "collateralAmount", "type": "u64"},
+          {"name": "xusdMinted", "type": "u64"},
+          {"name": "lastUpdated", "type": "i64"},
+          {"name": "isLiquidated", "type": "bool"},
+          {"name": "bump", "type": "u8"}
+        ]
+      }
+    },
+    {
+      "name": "PriceAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {"name": "asset", "type": {"array": ["u8", 8]}},
+          {"name": "price", "type": "u64"},
+          {"name": "publishedAt", "type": "i64"},
+          {"name": "authority", "type": "publicKey"},
+          {"name": "fromSix", "type": "bool"},
+          {"name": "bump", "type": "u8"}
+        ]
+      }
+    },
+    {
+      "name": "AllowList",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {"name": "admin", "type": "publicKey"},
+          {"name": "members", "type": {"vec": "publicKey"}},
+          {"name": "bump", "type": "u8"}
+        ]
+      }
+    },
+    {
+      "name": "TravelRuleRecord",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {"name": "transferId", "type": {"array": ["u8", 32]}},
+          {"name": "originatorName", "type": {"array": ["u8", 64]}},
+          {"name": "originatorVasp", "type": {"array": ["u8", 64]}},
+          {"name": "beneficiaryName", "type": {"array": ["u8", 64]}},
+          {"name": "beneficiaryVasp", "type": {"array": ["u8", 64]}},
+          {"name": "amount", "type": "u64"},
+          {"name": "from", "type": "publicKey"},
+          {"name": "to", "type": "publicKey"},
+          {"name": "timestamp", "type": "i64"},
+          {"name": "bump", "type": "u8"}
+        ]
+      }
+    }
+  ],
+  "events": [
+    {
+      "name": "KytEvent",
+      "fields": [
+        {"name": "from", "type": "publicKey", "index": false},
+        {"name": "action", "type": "string", "index": false},
+        {"name": "amount", "type": "u64", "index": false},
+        {"name": "timestamp", "type": "i64", "index": false},
+        {"name": "flagged", "type": "bool", "index": false}
+      ]
+    }
+  ],
+  "errors": [
+    {"code": 6000, "name": "KycNotVerified", "msg": "Wallet not KYC verified."},
+    {"code": 6001, "name": "StalePrice", "msg": "Price feed is stale (> 60 seconds old)."},
+    {"code": 6002, "name": "BadPrice", "msg": "Price is zero."},
+    {"code": 6003, "name": "NotEnoughCollateral", "msg": "Not enough collateral. Minimum 150% ratio required."},
+    {"code": 6004, "name": "VaultHealthy", "msg": "Vault is healthy. Cannot liquidate."},
+    {"code": 6005, "name": "VaultDead", "msg": "Vault already liquidated."},
+    {"code": 6006, "name": "TooMuch", "msg": "Amount exceeds debt."},
+    {"code": 6007, "name": "ZeroAmount", "msg": "Amount must be greater than zero."},
+    {"code": 6008, "name": "TravelRuleIncomplete", "msg": "Fill all 4 VASP fields for transfers above $3,000."},
+    {"code": 6009, "name": "NotAdmin", "msg": "Not the admin."},
+    {"code": 6010, "name": "AlreadyOnList", "msg": "Wallet already on the allowlist."},
+    {"code": 6011, "name": "ListFull", "msg": "Allowlist is full."},
+    {"code": 6012, "name": "Overflow", "msg": "Math overflow."}
+  ],
+  "metadata": {
+    "address": "7YWWyNwtHSKHoxNm5fw2Sh73QRcFPUzCQ7qntJM7HgnG"
+  }
+}

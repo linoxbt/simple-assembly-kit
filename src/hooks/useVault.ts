@@ -1,9 +1,19 @@
 import { useState, useEffect, useCallback } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { HealthStatus, MINT_RATIO_BPS, LIQUIDATION_RATIO_BPS, TOKEN_DECIMALS } from "@/utils/constants";
-import { fetchVaultState, fetchTokenBalance, COLLATERAL_MINT_PK, XUSD_MINT_PK } from "@/services/anchorProgram";
+import {
+  fetchVaultAccount,
+  fetchPriceAccount,
+  fetchAllowlistAccount,
+  fetchTokenBalance,
+  COLLATERAL_MINT_PK,
+  XUSD_MINT_PK,
+  OnChainVault,
+  OnChainPrice,
+} from "@/services/anchorProgram";
 
 export interface VaultState {
+  // On-chain vault data
   collateralOz: number;
   collateralUsdValue: number;
   xusdDebt: number;
@@ -11,20 +21,24 @@ export interface VaultState {
   maxMintable: number;
   health: HealthStatus;
   isLiquidated: boolean;
+  vaultExists: boolean;
+
+  // On-chain price data
   xauPriceUsd: number;
   priceIsStale: boolean;
   priceFromSix: boolean;
   priceUpdatedAt: Date | null;
+  priceNotInitialized: boolean;
+
+  // On-chain KYC
   isKycVerified: boolean;
-  vaultExists: boolean;
+
+  // Token balances
   xauBalance: number;
   xusdBalance: number;
-}
 
-export interface PriceData {
-  symbol: string;
-  price: number;
-  source: string;
+  // Loading
+  dataLoading: boolean;
 }
 
 function computeHealth(ratio: number, debt: number): HealthStatus {
@@ -35,61 +49,66 @@ function computeHealth(ratio: number, debt: number): HealthStatus {
   return "healthy";
 }
 
-export function useVault(xauPrice?: number) {
+const EMPTY_STATE: VaultState = {
+  collateralOz: 0,
+  collateralUsdValue: 0,
+  xusdDebt: 0,
+  collateralRatio: 0,
+  maxMintable: 0,
+  health: "empty",
+  isLiquidated: false,
+  vaultExists: false,
+  xauPriceUsd: 0,
+  priceIsStale: false,
+  priceFromSix: false,
+  priceUpdatedAt: null,
+  priceNotInitialized: true,
+  isKycVerified: false,
+  xauBalance: 0,
+  xusdBalance: 0,
+  dataLoading: true,
+};
+
+export function useVault() {
   const { publicKey, connected } = useWallet();
-  const [vault, setVault] = useState<VaultState>({
-    collateralOz: 0,
-    collateralUsdValue: 0,
-    xusdDebt: 0,
-    collateralRatio: 0,
-    maxMintable: 0,
-    health: "empty",
-    isLiquidated: false,
-    xauPriceUsd: xauPrice ?? 0,
-    priceIsStale: false,
-    priceFromSix: true,
-    priceUpdatedAt: null,
-    isKycVerified: false,
-    vaultExists: false,
-    xauBalance: 0,
-    xusdBalance: 0,
-  });
+  const [vault, setVault] = useState<VaultState>(EMPTY_STATE);
   const [loading, setLoading] = useState(false);
 
   const refresh = useCallback(async () => {
-    const price = xauPrice ?? 0;
-
     if (!connected || !publicKey) {
-      setVault((prev) => ({
-        ...prev,
-        xauPriceUsd: price,
-        priceUpdatedAt: new Date(),
-        collateralOz: 0,
-        collateralUsdValue: 0,
-        xusdDebt: 0,
-        collateralRatio: 0,
-        maxMintable: 0,
-        health: "empty",
-        vaultExists: false,
-        xauBalance: 0,
-        xusdBalance: 0,
-      }));
+      setVault({ ...EMPTY_STATE, dataLoading: false });
       return;
     }
 
     setLoading(true);
     try {
-      const [vaultData, xauBal, xusdBal] = await Promise.all([
-        fetchVaultState(publicKey),
+      // Fetch ALL on-chain state in parallel
+      const [vaultData, priceData, allowlistData, xauBal, xusdBal] = await Promise.all([
+        fetchVaultAccount(publicKey),
+        fetchPriceAccount("XAU/USD"),
+        fetchAllowlistAccount(),
         fetchTokenBalance(publicKey, COLLATERAL_MINT_PK),
         fetchTokenBalance(publicKey, XUSD_MINT_PK),
       ]);
 
-      const collateralOz = vaultData?.collateralOz ?? 0;
-      const xusdDebt = vaultData?.xusdDebt ?? 0;
+      // Price
+      const price = priceData?.price ?? 0;
+      const priceNotInitialized = !priceData;
+      const priceIsStale = priceData?.isStale ?? false;
+
+      // KYC check from on-chain allowlist
+      const isKycVerified = allowlistData?.members.some(
+        (m) => m.equals(publicKey)
+      ) ?? false;
+
+      // Vault
+      const collateralOz = vaultData?.collateralAmount ?? 0;
+      const xusdDebt = vaultData?.xusdMinted ?? 0;
       const collateralUsdValue = collateralOz * price;
       const collateralRatio = xusdDebt > 0 ? (collateralUsdValue / xusdDebt) * 100 : 0;
-      const maxMintable = (collateralUsdValue * 100) / (MINT_RATIO_BPS / 100) - xusdDebt;
+      const maxMintable = price > 0
+        ? (collateralUsdValue * 100) / (MINT_RATIO_BPS / 100) - xusdDebt
+        : 0;
       const health = computeHealth(collateralRatio, xusdDebt);
 
       setVault({
@@ -99,28 +118,29 @@ export function useVault(xauPrice?: number) {
         collateralRatio,
         maxMintable: Math.max(0, maxMintable),
         health,
-        isLiquidated: health === "liquidated",
-        xauPriceUsd: price,
-        priceIsStale: false,
-        priceFromSix: true,
-        priceUpdatedAt: new Date(),
-        isKycVerified: false,
+        isLiquidated: vaultData?.isLiquidated ?? false,
         vaultExists: !!vaultData,
+        xauPriceUsd: price,
+        priceIsStale,
+        priceFromSix: priceData?.fromSix ?? false,
+        priceUpdatedAt: priceData ? new Date(priceData.publishedAt * 1000) : null,
+        priceNotInitialized,
+        isKycVerified,
         xauBalance: xauBal,
         xusdBalance: xusdBal,
+        dataLoading: false,
       });
     } catch (err) {
       console.error("Failed to refresh vault:", err);
-      setVault((prev) => ({ ...prev, xauPriceUsd: price, priceUpdatedAt: new Date() }));
+      setVault((prev) => ({ ...prev, dataLoading: false }));
     } finally {
       setLoading(false);
     }
-  }, [publicKey, connected, xauPrice]);
+  }, [publicKey, connected]);
 
-  // Refresh on wallet connect/disconnect and periodically
   useEffect(() => {
     refresh();
-    const interval = setInterval(refresh, 30_000);
+    const interval = setInterval(refresh, 15_000);
     return () => clearInterval(interval);
   }, [refresh]);
 
