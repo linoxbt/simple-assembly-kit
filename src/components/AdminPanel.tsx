@@ -1,19 +1,12 @@
 import { useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { PublicKey } from "@solana/web3.js";
 import { useProtocolStore } from "@/stores/protocolStore";
-import {
-  addToAllowlistOnChain,
-  removeFromAllowlistOnChain,
-  fetchAllowlistAccount,
-  parseProgramError,
-} from "@/services/anchorProgram";
 import { AML_REASONS, AmlReason } from "@/utils/constants";
 import { shortenAddress } from "@/utils/format";
 import { toast } from "sonner";
 
 const AdminPanel = () => {
-  const { publicKey, signTransaction } = useWallet();
+  const { publicKey } = useWallet();
   const walletAddress = publicKey?.toBase58() ?? "";
   const isAdmin = useProtocolStore((s) => s.isAdmin(walletAddress));
 
@@ -30,10 +23,7 @@ const AdminPanel = () => {
   const [amlScoreVal, setAmlScoreVal] = useState(25);
   const [amlReason, setAmlReason] = useState<AmlReason>("CLEAN");
   const [loading, setLoading] = useState<string | null>(null);
-  const [txStatus, setTxStatus] = useState<string | null>(null);
-  const [onChainMembers, setOnChainMembers] = useState<string[]>([]);
 
-  // Guard: only admins can see this panel
   if (!isAdmin) {
     return (
       <div className="text-center py-12">
@@ -43,75 +33,39 @@ const AdminPanel = () => {
     );
   }
 
-  const refreshOnChainAllowlist = async () => {
-    const data = await fetchAllowlistAccount();
-    if (data) {
-      setOnChainMembers(data.members.map((m) => m.toBase58()));
-    }
-  };
-
-  const handleAddToAllowlistOnChain = async () => {
-    if (!newAddress.trim() || !publicKey || !signTransaction) return;
+  const handleAddToAllowlist = async () => {
+    if (!newAddress.trim()) return;
     setLoading("add-allowlist");
-    setTxStatus("Waiting for wallet approval...");
     try {
-      const memberPk = new PublicKey(newAddress.trim());
-      const result = await addToAllowlistOnChain(publicKey, memberPk, signTransaction);
-      if (result.success) {
-        setTxStatus(`Confirmed ✓ tx: ${result.txSignature?.slice(0, 8)}...`);
-        toast.success(`Added ${shortenAddress(newAddress)} to on-chain allowlist`);
-        // Also save to database
-        await addToAllowlist(newAddress.trim(), walletAddress);
-        setNewAddress("");
-        refreshOnChainAllowlist();
-      } else {
-        setTxStatus(`Error: ${result.error}`);
-        toast.error("Failed", { description: result.error });
-      }
+      await addToAllowlist(newAddress.trim(), walletAddress);
+      toast.success(`Added ${shortenAddress(newAddress)} to allowlist`);
+      setNewAddress("");
     } catch (err: any) {
-      const msg = parseProgramError(err);
-      setTxStatus(`Error: ${msg}`);
-      toast.error("Failed", { description: msg });
+      toast.error("Failed to add to allowlist", { description: err.message });
     } finally {
       setLoading(null);
     }
   };
 
-  const handleRemoveFromAllowlistOnChain = async (addr: string) => {
-    if (!publicKey || !signTransaction) return;
+  const handleRemoveFromAllowlist = async (addr: string) => {
     setLoading(`remove-${addr}`);
     try {
-      const memberPk = new PublicKey(addr);
-      const result = await removeFromAllowlistOnChain(publicKey, memberPk, signTransaction);
-      if (result.success) {
-        toast.success(`Removed ${shortenAddress(addr)} from on-chain allowlist`);
-        await removeFromAllowlist(addr);
-        refreshOnChainAllowlist();
-      } else {
-        toast.error("Failed", { description: result.error });
-      }
+      await removeFromAllowlist(addr);
+      toast.success(`Removed ${shortenAddress(addr)} from allowlist`);
     } catch (err: any) {
-      toast.error("Failed", { description: parseProgramError(err) });
+      toast.error("Failed", { description: err.message });
     } finally {
       setLoading(null);
     }
   };
 
   const handleApproveRequest = async (wallet: string) => {
-    if (!publicKey || !signTransaction) return;
     setLoading(`approve-${wallet}`);
     try {
-      const memberPk = new PublicKey(wallet);
-      const result = await addToAllowlistOnChain(publicKey, memberPk, signTransaction);
-      if (result.success) {
-        await approveRequest(wallet);
-        toast.success(`Approved & added ${shortenAddress(wallet)} on-chain`);
-        refreshOnChainAllowlist();
-      } else {
-        toast.error("On-chain tx failed", { description: result.error });
-      }
+      await approveRequest(wallet);
+      toast.success(`Approved ${shortenAddress(wallet)}`);
     } catch (err: any) {
-      toast.error("Failed", { description: parseProgramError(err) });
+      toast.error("Failed", { description: err.message });
     } finally {
       setLoading(null);
     }
@@ -122,17 +76,6 @@ const AdminPanel = () => {
 
   return (
     <div className="space-y-4">
-      {/* Tx Status */}
-      {txStatus && (
-        <div className={`text-xs tracking-wider text-center py-2 rounded border ${
-          txStatus.startsWith("Confirmed") ? "border-primary/40 text-primary bg-primary/5" :
-          txStatus.startsWith("Error") ? "border-destructive/40 text-destructive bg-destructive/5" :
-          "border-accent/40 text-accent bg-accent/5"
-        }`}>
-          {txStatus}
-        </div>
-      )}
-
       {/* Allowlist Requests */}
       {pendingRequests.length > 0 && (
         <div className="bg-card border border-primary/30 rounded-lg p-4 card-glow">
@@ -150,7 +93,7 @@ const AdminPanel = () => {
                     disabled={loading === `approve-${req.wallet}`}
                     className="text-primary hover:underline text-[10px] tracking-wider disabled:opacity-30"
                   >
-                    {loading === `approve-${req.wallet}` ? "SENDING TX…" : "APPROVE (ON-CHAIN)"}
+                    {loading === `approve-${req.wallet}` ? "APPROVING…" : "APPROVE"}
                   </button>
                   <button onClick={async () => { await rejectRequest(req.wallet); toast.success(`Rejected ${shortenAddress(req.wallet)}`); }} className="text-destructive hover:underline text-[10px] tracking-wider">REJECT</button>
                 </div>
@@ -188,16 +131,16 @@ const AdminPanel = () => {
           </div>
         </div>
 
-        {/* KYC Allowlist — ON-CHAIN */}
+        {/* KYC Allowlist — Database only */}
         <div className="bg-card border border-card-border rounded-lg p-4 card-glow">
           <div className="flex items-center justify-between mb-4">
-            <div className="text-[10px] text-muted-foreground tracking-widest uppercase">KYC Allowlist (On-Chain + DB)</div>
-            <button onClick={refreshOnChainAllowlist} className="text-[10px] text-primary hover:underline tracking-wider">REFRESH</button>
+            <div className="text-[10px] text-muted-foreground tracking-widest uppercase">KYC Allowlist</div>
+            <span className="text-[10px] text-muted-foreground">{allowlist.length} wallets</span>
           </div>
           <div className="flex gap-2 mb-4">
             <input placeholder="Wallet address" value={newAddress} onChange={(e) => setNewAddress(e.target.value)} className="flex-1 bg-surface border border-card-border rounded px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none" />
-            <button onClick={handleAddToAllowlistOnChain} disabled={loading === "add-allowlist"} className="px-4 py-2 text-xs border border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors rounded tracking-wider font-medium disabled:opacity-30">
-              {loading === "add-allowlist" ? "TX…" : "ADD ON-CHAIN +"}
+            <button onClick={handleAddToAllowlist} disabled={loading === "add-allowlist"} className="px-4 py-2 text-xs border border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors rounded tracking-wider font-medium disabled:opacity-30">
+              {loading === "add-allowlist" ? "ADDING…" : "ADD +"}
             </button>
           </div>
           <div className="space-y-2 max-h-48 overflow-y-auto">
@@ -207,16 +150,13 @@ const AdminPanel = () => {
               allowlist.map((addr) => (
                 <div key={addr} className="flex items-center justify-between bg-surface rounded px-3 py-2 text-xs">
                   <span className="text-foreground font-mono">{shortenAddress(addr, 6)}</span>
-                  <div className="flex items-center gap-2">
-                    {onChainMembers.includes(addr) && <span className="text-[10px] text-primary">ON-CHAIN</span>}
-                    <button
-                      onClick={() => handleRemoveFromAllowlistOnChain(addr)}
-                      disabled={loading === `remove-${addr}`}
-                      className="text-destructive hover:underline text-[10px] tracking-wider disabled:opacity-30"
-                    >
-                      REVOKE
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => handleRemoveFromAllowlist(addr)}
+                    disabled={loading === `remove-${addr}`}
+                    className="text-destructive hover:underline text-[10px] tracking-wider disabled:opacity-30"
+                  >
+                    REVOKE
+                  </button>
                 </div>
               ))
             )}
@@ -275,9 +215,9 @@ const AdminPanel = () => {
             </tr>
           </thead>
           <tbody className="text-foreground">
-            <tr className="border-b border-card-border/50"><td className="py-2 pr-4">KYC</td><td className="py-2 pr-4">All transactions</td><td className="py-2">Block if not on AllowList PDA</td></tr>
-            <tr className="border-b border-card-border/50"><td className="py-2 pr-4">AML</td><td className="py-2 pr-4">Score &gt;70/100</td><td className="py-2">Block at instruction level</td></tr>
-            <tr className="border-b border-card-border/50"><td className="py-2 pr-4">KYT</td><td className="py-2 pr-4">All txns, flag $10k</td><td className="py-2">Emit KytEvent on-chain</td></tr>
+            <tr className="border-b border-card-border/50"><td className="py-2 pr-4">KYC</td><td className="py-2 pr-4">All transactions</td><td className="py-2">Database allowlist check</td></tr>
+            <tr className="border-b border-card-border/50"><td className="py-2 pr-4">AML</td><td className="py-2 pr-4">Score &gt;70/100</td><td className="py-2">Block at application level</td></tr>
+            <tr className="border-b border-card-border/50"><td className="py-2 pr-4">KYT</td><td className="py-2 pr-4">All txns, flag $10k</td><td className="py-2">Log KytEvent to database</td></tr>
             <tr><td className="py-2 pr-4">Travel Rule</td><td className="py-2 pr-4">Transfers ≥$3,000</td><td className="py-2">Require VASP fields + PDA record</td></tr>
           </tbody>
         </table>
