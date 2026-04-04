@@ -61,17 +61,18 @@ export async function fetchPrices(): Promise<{
   try {
     const onChainPrice = await fetchPriceAccount("XAU/USD");
     if (onChainPrice && onChainPrice.price > 0) {
+      const sourceLabel = onChainPrice.fromSix ? "SIX BFI" : "On-Chain";
       const feeds: PriceFeedData[] = [
         {
           symbol: "XAU/USD",
           price: onChainPrice.price,
           confidence: 0.05,
-          source: "On-Chain",
+          source: sourceLabel as any,
           updatedAt: new Date(onChainPrice.publishedAt * 1000),
           isStale: onChainPrice.isStale,
         },
       ];
-      return { feeds, primarySource: "On-Chain" };
+      return { feeds, primarySource: sourceLabel as any };
     }
   } catch (err) {
     console.warn("On-chain price unavailable:", err);
