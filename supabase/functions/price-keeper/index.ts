@@ -1,10 +1,8 @@
 /**
  * Price Keeper Edge Function
  * Fetches XAU/USD from Pyth Hermes API and writes on-chain via update_price instruction.
- * Runs on a schedule or can be called manually.
  * Requires ADMIN_PRIVATE_KEY secret (base58 or JSON array).
  */
-import { corsHeaders } from "@supabase/supabase-js/cors";
 import {
   Connection,
   Keypair,
@@ -13,10 +11,16 @@ import {
   TransactionInstruction,
   SystemProgram,
 } from "npm:@solana/web3.js@1.98.4";
+import { Buffer } from "node:buffer";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
 
 const PROGRAM_ID = new PublicKey("7YWWyNwtHSKHoxNm5fw2Sh73QRcFPUzCQ7qntJM7HgnG");
 const RPC_URL = "https://api.devnet.solana.com";
-const PYTH_XAU_FEED = "0x765d2ba906dbc32ca17cc11f5310a89e9ee1f6420508c63c52edd8f09e5e4bb2";
+const PYTH_XAU_FEED = "0x765d2ba906dbc32ca17cc11f5310a89e9ee1f6420508c63861f2f8ba4ee34bb2";
 const PYTH_HERMES_URL = "https://hermes.pyth.network/v2/updates/price/latest";
 
 function derivePricePda(assetName: string): [PublicKey, number] {
@@ -68,7 +72,6 @@ Deno.serve(async (req) => {
       const parsed = JSON.parse(adminKeyRaw);
       adminKeypair = Keypair.fromSecretKey(Uint8Array.from(parsed));
     } catch {
-      // Try base58 decode
       const { default: bs58 } = await import("npm:bs58@5.0.0");
       adminKeypair = Keypair.fromSecretKey(bs58.decode(adminKeyRaw));
     }
@@ -86,7 +89,7 @@ Deno.serve(async (req) => {
     const rawPrice = parseInt(feed.price.price);
     const expo = feed.price.expo;
     const priceUsd = rawPrice * Math.pow(10, expo);
-    const priceRaw = BigInt(Math.floor(priceUsd * 1_000_000)); // 6 decimal fixed point
+    const priceRaw = BigInt(Math.floor(priceUsd * 1_000_000));
     const publishedAt = BigInt(feed.price.publish_time);
 
     // Build update_price instruction
@@ -96,17 +99,16 @@ Deno.serve(async (req) => {
     assetBytes.set(assetEncoded.slice(0, 8));
 
     const [pricePda] = derivePricePda("XAU/USD");
-
     const discriminator = await disc("update_price");
-    const fromSixByte = new Uint8Array([0]); // false - from Pyth not SIX
+    const fromSixByte = new Uint8Array([0]);
 
-    const data = new Uint8Array([
+    const data = Buffer.from(new Uint8Array([
       ...discriminator,
       ...assetBytes,
       ...encodeU64(priceRaw),
       ...encodeI64(publishedAt),
       ...fromSixByte,
-    ]);
+    ]));
 
     const ix = new TransactionInstruction({
       programId: PROGRAM_ID,
@@ -115,7 +117,7 @@ Deno.serve(async (req) => {
         { pubkey: pricePda, isSigner: false, isWritable: true },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
-      data: Buffer.from(data),
+      data,
     });
 
     const connection = new Connection(RPC_URL, "confirmed");
