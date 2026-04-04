@@ -4,7 +4,10 @@
  * Runs on a schedule or can be called manually.
  * Requires ADMIN_PRIVATE_KEY secret (base58 or JSON array).
  */
-import { corsHeaders } from "@supabase/supabase-js/cors";
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
 import {
   Connection,
   Keypair,
