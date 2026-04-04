@@ -16,7 +16,7 @@ export interface PriceFeedData {
 
 // Pyth Hermes fallback
 const PYTH_FEED_IDS: Record<string, string> = {
-  "XAU/USD": "0x765d2ba906dbc32ca17cc11f5310a89e9ee1f6420508c63c52edd8f09e5e4bb2",
+  "XAU/USD": "0x765d2ba906dbc32ca17cc11f5310a89e9ee1f6420508c63861f2f8ba4ee34bb2",
   "XAG/USD": "0xf2fb02c32b055c805e7238d628e5e9dadef274376114eb1f012337cabe93871e",
 };
 const PYTH_HERMES_URL = "https://hermes.pyth.network/v2/updates/price/latest";

@@ -19,7 +19,7 @@ import {
 
 const PROGRAM_ID = new PublicKey("7YWWyNwtHSKHoxNm5fw2Sh73QRcFPUzCQ7qntJM7HgnG");
 const RPC_URL = "https://api.devnet.solana.com";
-const PYTH_XAU_FEED = "0x765d2ba906dbc32ca17cc11f5310a89e9ee1f6420508c63c52edd8f09e5e4bb2";
+const PYTH_XAU_FEED = "0x765d2ba906dbc32ca17cc11f5310a89e9ee1f6420508c63861f2f8ba4ee34bb2";
 const PYTH_HERMES_URL = "https://hermes.pyth.network/v2/updates/price/latest";
 
 function derivePricePda(assetName: string): [PublicKey, number] {
