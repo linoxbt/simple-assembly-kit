@@ -134,6 +134,33 @@ export type Database = {
         }
         Relationships: []
       }
+      price_history: {
+        Row: {
+          asset: string
+          created_at: string
+          id: string
+          price: number
+          source: string
+          tx_signature: string | null
+        }
+        Insert: {
+          asset?: string
+          created_at?: string
+          id?: string
+          price: number
+          source?: string
+          tx_signature?: string | null
+        }
+        Update: {
+          asset?: string
+          created_at?: string
+          id?: string
+          price?: number
+          source?: string
+          tx_signature?: string | null
+        }
+        Relationships: []
+      }
       transactions: {
         Row: {
           amount: number
