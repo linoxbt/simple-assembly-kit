@@ -1,9 +1,11 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
+import { supabase } from "@/integrations/supabase/client";
 
 interface PricePoint {
   time: string;
   price: number;
+  source: string;
 }
 
 interface PriceHistoryChartProps {
@@ -12,50 +14,107 @@ interface PriceHistoryChartProps {
 
 const PriceHistoryChart = ({ currentPrice }: PriceHistoryChartProps) => {
   const [history, setHistory] = useState<PricePoint[]>([]);
-  const basePrice = useRef(currentPrice || 2345);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (currentPrice > 0) basePrice.current = currentPrice;
-  }, [currentPrice]);
+  const fetchHistory = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("price_history")
+        .select("price, source, created_at")
+        .eq("asset", "XAU/USD")
+        .order("created_at", { ascending: true })
+        .limit(100);
 
-  useEffect(() => {
-    // Seed initial history
-    const now = Date.now();
-    const initial: PricePoint[] = [];
-    for (let i = 24; i >= 0; i--) {
-      const t = now - i * 60_000 * 60;
-      const drift = (Math.random() - 0.5) * basePrice.current * 0.02;
-      initial.push({
-        time: new Date(t).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }),
-        price: Math.round((basePrice.current + drift) * 100) / 100,
-      });
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        setHistory(
+          data.map((row: any) => ({
+            time: new Date(row.created_at).toLocaleTimeString("en-US", {
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: false,
+            }),
+            price: Number(row.price),
+            source: row.source,
+          }))
+        );
+      }
+    } catch (err) {
+      console.warn("Failed to fetch price history:", err);
+    } finally {
+      setLoading(false);
     }
-    setHistory(initial);
+  };
 
-    // Add new point every 15s
-    const iv = setInterval(() => {
-      setHistory((prev) => {
-        const last = prev[prev.length - 1]?.price ?? basePrice.current;
-        const drift = (Math.random() - 0.5) * last * 0.003;
-        const next: PricePoint = {
-          time: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }),
-          price: Math.round((last + drift) * 100) / 100,
-        };
-        return [...prev.slice(-48), next];
-      });
-    }, 15_000);
-
+  useEffect(() => {
+    fetchHistory();
+    const iv = setInterval(fetchHistory, 30_000);
     return () => clearInterval(iv);
   }, []);
+
+  // Subscribe to realtime inserts
+  useEffect(() => {
+    const channel = supabase
+      .channel("price_history_realtime")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "price_history" },
+        (payload) => {
+          const row = payload.new as any;
+          if (row.asset === "XAU/USD") {
+            setHistory((prev) => [
+              ...prev.slice(-99),
+              {
+                time: new Date(row.created_at).toLocaleTimeString("en-US", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: false,
+                }),
+                price: Number(row.price),
+                source: row.source,
+              },
+            ]);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="bg-card border border-card-border rounded-lg p-4 card-glow">
+        <div className="text-[10px] text-muted-foreground tracking-widest uppercase mb-3">XAU/USD Price History</div>
+        <div className="h-40 flex items-center justify-center text-xs text-muted-foreground">Loading price history…</div>
+      </div>
+    );
+  }
+
+  if (history.length === 0) {
+    return (
+      <div className="bg-card border border-card-border rounded-lg p-4 card-glow">
+        <div className="text-[10px] text-muted-foreground tracking-widest uppercase mb-3">XAU/USD Price History</div>
+        <div className="h-40 flex items-center justify-center text-xs text-muted-foreground">
+          No price data yet. The keeper will populate this automatically.
+        </div>
+      </div>
+    );
+  }
 
   const prices = history.map((h) => h.price);
   const min = Math.min(...prices) * 0.999;
   const max = Math.max(...prices) * 1.001;
+  const latestSource = history[history.length - 1]?.source ?? "—";
 
   return (
     <div className="bg-card border border-card-border rounded-lg p-4 card-glow">
       <div className="flex items-center justify-between mb-3">
-        <div className="text-[10px] text-muted-foreground tracking-widest uppercase">XAU/USD Price History</div>
+        <div className="text-[10px] text-muted-foreground tracking-widest uppercase">
+          XAU/USD Price History
+          <span className="ml-2 text-[9px] opacity-60">via {latestSource}</span>
+        </div>
         <span className="text-xs text-primary font-semibold gold-glow">
           ${currentPrice.toFixed(2)}
         </span>

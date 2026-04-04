@@ -9,7 +9,7 @@ export interface PriceFeedData {
   symbol: string;
   price: number;
   confidence: number;
-  source: "On-Chain" | "Pyth" | "Unavailable";
+  source: "On-Chain" | "SIX BFI" | "Pyth" | "Unavailable";
   updatedAt: Date;
   isStale: boolean;
 }
@@ -55,23 +55,24 @@ async function fetchPythPrices(): Promise<PriceFeedData[]> {
  */
 export async function fetchPrices(): Promise<{
   feeds: PriceFeedData[];
-  primarySource: "On-Chain" | "Pyth";
+  primarySource: "On-Chain" | "SIX BFI" | "Pyth";
 }> {
   // Try on-chain first
   try {
     const onChainPrice = await fetchPriceAccount("XAU/USD");
     if (onChainPrice && onChainPrice.price > 0) {
+      const sourceLabel = onChainPrice.fromSix ? "SIX BFI" : "On-Chain";
       const feeds: PriceFeedData[] = [
         {
           symbol: "XAU/USD",
           price: onChainPrice.price,
           confidence: 0.05,
-          source: "On-Chain",
+          source: sourceLabel as any,
           updatedAt: new Date(onChainPrice.publishedAt * 1000),
           isStale: onChainPrice.isStale,
         },
       ];
-      return { feeds, primarySource: "On-Chain" };
+      return { feeds, primarySource: sourceLabel as any };
     }
   } catch (err) {
     console.warn("On-chain price unavailable:", err);
