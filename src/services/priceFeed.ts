@@ -55,7 +55,7 @@ async function fetchPythPrices(): Promise<PriceFeedData[]> {
  */
 export async function fetchPrices(): Promise<{
   feeds: PriceFeedData[];
-  primarySource: "On-Chain" | "Pyth";
+  primarySource: "On-Chain" | "SIX BFI" | "Pyth";
 }> {
   // Try on-chain first
   try {
