@@ -9,7 +9,7 @@ export interface PriceFeedData {
   symbol: string;
   price: number;
   confidence: number;
-  source: "On-Chain" | "Pyth" | "Unavailable";
+  source: "On-Chain" | "SIX BFI" | "Pyth" | "Unavailable";
   updatedAt: Date;
   isStale: boolean;
 }
