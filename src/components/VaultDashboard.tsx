@@ -227,13 +227,65 @@ const VaultDashboard = ({ vault, prices, onRefresh }: VaultDashboardProps) => {
     <div className="space-y-4">
       {/* Price Warning */}
       {vault.priceNotInitialized && (
-        <div className="text-xs tracking-wider text-center py-2 rounded border border-accent/40 text-accent bg-accent/5">
-          ⚠ PRICE FEED NOT INITIALISED — Start the keeper to write prices on-chain.
+        <div className="text-xs tracking-wider text-center py-2 rounded border border-accent/40 text-accent bg-accent/5 flex items-center justify-center gap-2">
+          ⚠ PRICE FEED NOT INITIALISED
+          <button
+            onClick={async () => {
+              setTxStatus("Calling price keeper...");
+              try {
+                const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+                const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+                const res = await fetch(`${supabaseUrl}/functions/v1/price-keeper`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${supabaseKey}`, apikey: supabaseKey },
+                });
+                const data = await res.json();
+                if (data.success) {
+                  setTxStatus(`Price updated: $${data.price.toFixed(2)} ✓`);
+                  toast.success("Price written on-chain");
+                  onRefresh?.();
+                } else {
+                  setTxStatus(`Error: ${data.error}`);
+                }
+              } catch (err: any) {
+                setTxStatus(`Error: ${err.message}`);
+              }
+            }}
+            className="text-primary hover:underline text-[10px] tracking-wider"
+          >
+            [UPDATE NOW]
+          </button>
         </div>
       )}
       {vault.priceIsStale && !vault.priceNotInitialized && (
-        <div className="text-xs tracking-wider text-center py-2 rounded border border-accent/40 text-accent bg-accent/5">
+        <div className="text-xs tracking-wider text-center py-2 rounded border border-accent/40 text-accent bg-accent/5 flex items-center justify-center gap-2">
           ⚠ PRICE FEED STALE — Last updated {vault.priceUpdatedAt?.toLocaleTimeString()}
+          <button
+            onClick={async () => {
+              setTxStatus("Refreshing price...");
+              try {
+                const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+                const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+                const res = await fetch(`${supabaseUrl}/functions/v1/price-keeper`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${supabaseKey}`, apikey: supabaseKey },
+                });
+                const data = await res.json();
+                if (data.success) {
+                  setTxStatus(`Price updated: $${data.price.toFixed(2)} ✓`);
+                  toast.success("Price refreshed on-chain");
+                  onRefresh?.();
+                } else {
+                  setTxStatus(`Error: ${data.error}`);
+                }
+              } catch (err: any) {
+                setTxStatus(`Error: ${err.message}`);
+              }
+            }}
+            className="text-primary hover:underline text-[10px] tracking-wider"
+          >
+            [REFRESH]
+          </button>
         </div>
       )}
 
