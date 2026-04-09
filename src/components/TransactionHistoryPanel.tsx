@@ -3,8 +3,7 @@ import { formatUsd, formatOz } from "@/utils/format";
 import { SOLANA_NETWORK } from "@/utils/constants";
 import { TransactionRecord } from "@/stores/protocolStore";
 
-const explorerUrl = (sig: string) =>
-  sig.startsWith("mock_") ? "#" : `https://explorer.solana.com/tx/${sig}?cluster=${SOLANA_NETWORK}`;
+const explorerUrl = (sig: string) => `https://explorer.solana.com/tx/${sig}?cluster=${SOLANA_NETWORK}`;
 
 const typeLabels: Record<string, string> = { deposit: "DEPOSIT", mint: "MINT", burn: "BURN" };
 
@@ -14,7 +13,8 @@ interface Props {
 
 const TransactionHistoryPanel = ({ transactions = [] }: Props) => {
   const [filter, setFilter] = useState<"all" | "deposit" | "mint" | "burn">("all");
-  const filtered = filter === "all" ? transactions : transactions.filter((t) => t.type === filter);
+  const realTransactions = transactions.filter((t) => !t.txSignature.startsWith("mock_"));
+  const filtered = filter === "all" ? realTransactions : realTransactions.filter((t) => t.type === filter);
 
   const formatTime = (d: Date) => {
     const mins = Math.floor((Date.now() - d.getTime()) / 60000);
@@ -49,7 +49,7 @@ const TransactionHistoryPanel = ({ transactions = [] }: Props) => {
       <div className="space-y-1.5 max-h-64 overflow-y-auto">
         {filtered.length === 0 ? (
           <div className="text-xs text-muted-foreground text-center py-4">
-            {transactions.length === 0 ? "No transactions yet — deposit, mint, or burn to see history" : "No transactions found"}
+            {realTransactions.length === 0 ? "No transactions yet — deposit, mint, or burn to see history" : "No transactions found"}
           </div>
         ) : (
           filtered.map((tx) => (
@@ -65,7 +65,7 @@ const TransactionHistoryPanel = ({ transactions = [] }: Props) => {
                 </span>
                 <span className="text-muted-foreground">{formatTime(tx.timestamp)}</span>
                 <a href={explorerUrl(tx.txSignature)} target="_blank" rel="noopener noreferrer" className="text-primary/70 hover:underline text-[10px] tracking-wider" title={tx.txSignature}>
-                  {tx.txSignature.startsWith("mock_") ? "MOCK" : `${tx.txSignature.slice(0, 8)}…`}
+                  {`${tx.txSignature.slice(0, 8)}…`}
                 </a>
               </div>
             </div>

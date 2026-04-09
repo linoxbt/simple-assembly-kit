@@ -118,16 +118,35 @@ export const useProtocolStore = create<ProtocolState>((set, get) => ({
       decidedAt: r.decided_at ? new Date(r.decided_at) : undefined,
     }));
 
-    const kytEvents: KytEvent[] = (kytRes.data ?? []).map((r: any) => ({
+    const mockTransactions = (txRes.data ?? []).filter((r: any) => String(r.tx_signature ?? "").startsWith("mock_"));
+    const mockKytEntries = mockTransactions.map((r: any) => ({
+      wallet: r.wallet_address,
+      action: String(r.type).toUpperCase(),
+      amount: r.type === "deposit" ? `${Number(r.amount)}oz` : `$${Number(r.amount).toFixed(2)}`,
+      asset: r.type === "deposit" ? "XAU" : "xUSD",
+      createdAtMs: new Date(r.created_at).getTime(),
+    }));
+
+    const kytEvents: KytEvent[] = (kytRes.data ?? [])
+      .filter((r: any) => !mockKytEntries.some((m) =>
+        m.wallet === r.wallet_address &&
+        m.action === r.action &&
+        m.amount === r.amount &&
+        m.asset === r.asset &&
+        Math.abs(new Date(r.created_at).getTime() - m.createdAtMs) < 120000
+      ))
+      .map((r: any) => ({
       time: new Date(r.created_at),
       action: r.action,
       amount: r.amount,
       asset: r.asset,
       flagged: r.flagged,
       wallet: r.wallet_address,
-    }));
+      }));
 
-    const transactions: TransactionRecord[] = (txRes.data ?? []).map((r: any) => ({
+    const transactions: TransactionRecord[] = (txRes.data ?? [])
+      .filter((r: any) => !String(r.tx_signature ?? "").startsWith("mock_"))
+      .map((r: any) => ({
       id: r.id,
       type: r.type as "deposit" | "mint" | "burn",
       amount: Number(r.amount),
@@ -136,7 +155,7 @@ export const useProtocolStore = create<ProtocolState>((set, get) => ({
       timestamp: new Date(r.created_at),
       status: r.status as "confirmed" | "pending" | "failed",
       wallet: r.wallet_address,
-    }));
+      }));
 
     const amlScores: Record<string, { score: number; reason: string }> = {};
     (amlRes.data ?? []).forEach((r: any) => {

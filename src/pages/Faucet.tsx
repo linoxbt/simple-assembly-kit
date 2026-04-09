@@ -72,7 +72,7 @@ const Faucet = () => {
   const handleTokenClaim = async (tokenSymbol: string) => {
     if (!publicKey) return;
     setLoading(tokenSymbol);
-    setTxStatus(`Requesting ${tokenSymbol} from faucet...`);
+      setTxStatus(`Minting ${tokenSymbol} on-chain...`);
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -97,21 +97,18 @@ const Faucet = () => {
       const result = await response.json();
       if (!response.ok || result.error) throw new Error(result.error || "Faucet request failed");
 
-      if (result.txSignature) {
-        setTxStatus(`Confirmed ✓ ${amount} ${tokenSymbol} sent. tx: ${result.txSignature.slice(0, 8)}...`);
-        toast.success(`${amount} ${tokenSymbol} sent!`, {
-          description: (
-            <a href={`https://explorer.solana.com/tx/${result.txSignature}?cluster=${SOLANA_NETWORK}`} target="_blank" rel="noopener noreferrer" className="underline">
-              View on Explorer →
-            </a>
-          ),
-        });
-      } else {
-        setTxStatus(`Request queued. ${result.message || ""}`);
-        toast.info(`${tokenSymbol} faucet request queued`, {
-          description: result.note || "The admin will process your request.",
-        });
+      if (!result.txSignature) {
+        throw new Error(result.error || result.message || "Faucet mint did not return a transaction signature");
       }
+
+      setTxStatus(`Confirmed ✓ ${amount} ${tokenSymbol} sent. tx: ${result.txSignature.slice(0, 8)}...`);
+      toast.success(`${amount} ${tokenSymbol} sent on-chain!`, {
+        description: (
+          <a href={`https://explorer.solana.com/tx/${result.txSignature}?cluster=${SOLANA_NETWORK}`} target="_blank" rel="noopener noreferrer" className="underline">
+            View on Explorer →
+          </a>
+        ),
+      });
       setTimeout(refreshBalances, 3000);
     } catch (err: any) {
       const msg = parseProgramError(err);

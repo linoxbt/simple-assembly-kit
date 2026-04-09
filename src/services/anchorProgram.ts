@@ -14,7 +14,7 @@ import {
 import {
   getAssociatedTokenAddressSync,
   getAccount,
-  TOKEN_2022_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import {
@@ -112,7 +112,7 @@ export function deriveTravelRulePda(transferId: Uint8Array): [PublicKey, number]
 
 // ─── ATA Helper ──────────────────────────────────────────
 export function getAta(owner: PublicKey, mint: PublicKey, allowOwnerOffCurve = false): PublicKey {
-  return getAssociatedTokenAddressSync(mint, owner, allowOwnerOffCurve, TOKEN_2022_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID);
+  return getAssociatedTokenAddressSync(mint, owner, allowOwnerOffCurve, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID);
 }
 
 // ─── Anchor Discriminator ────────────────────────────────
@@ -243,7 +243,7 @@ export async function fetchAllowlistAccount(): Promise<OnChainAllowList | null> 
 export async function fetchTokenBalance(owner: PublicKey, mint: PublicKey): Promise<number> {
   try {
     const ata = getAta(owner, mint);
-    const account = await getAccount(connection, ata, "confirmed", TOKEN_2022_PROGRAM_ID);
+    const account = await getAccount(connection, ata, "confirmed", TOKEN_PROGRAM_ID);
     return Number(account.amount) / 1_000_000;
   } catch {
     return 0;
@@ -302,7 +302,7 @@ export async function depositCollateral(
         { pubkey: ownerCollAta, isSigner: false, isWritable: true },
         { pubkey: vaultCollAta, isSigner: false, isWritable: true },
         { pubkey: COLLATERAL_MINT_PK, isSigner: false, isWritable: false },
-        { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
+        { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
       data,
@@ -344,7 +344,7 @@ export async function mintXusd(
         { pubkey: XUSD_MINT_PK, isSigner: false, isWritable: true },
         { pubkey: ownerXusdAta, isSigner: false, isWritable: true },
         { pubkey: mintAuthority, isSigner: false, isWritable: false },
-        { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
+        { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
       data,
@@ -388,7 +388,7 @@ export async function burnXusd(
         { pubkey: ownerCollAta, isSigner: false, isWritable: true },
         { pubkey: COLLATERAL_MINT_PK, isSigner: false, isWritable: false },
         { pubkey: vaultPda, isSigner: false, isWritable: false }, // vaultSigner = vaultPda
-        { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
+        { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
       data,
@@ -473,4 +473,4 @@ export async function requestSolAirdrop(walletPk: PublicKey): Promise<string> {
   return sig;
 }
 
-export { TOKEN_2022_PROGRAM_ID };
+export { TOKEN_PROGRAM_ID };
