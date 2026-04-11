@@ -161,6 +161,27 @@ export type Database = {
         }
         Relationships: []
       }
+      protocol_settings: {
+        Row: {
+          id: string
+          kyc_enabled: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: string
+          kyc_enabled?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: string
+          kyc_enabled?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       transactions: {
         Row: {
           amount: number
