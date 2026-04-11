@@ -113,25 +113,29 @@ Deno.serve(async (req) => {
       if (!allowlistInfo) {
         // Initialize the allowlist first
         console.log("Allowlist PDA not found, initializing...");
-        const initDisc = await disc("initialize");
-        const initIx = new TransactionInstruction({
-          programId: PROGRAM_ID,
-          keys: [
-            { pubkey: adminKeypair.publicKey, isSigner: true, isWritable: true },
-            { pubkey: allowlistPda, isSigner: false, isWritable: true },
-            { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-          ],
-          data: Buffer.from(initDisc),
-        });
+        try {
+          const initDisc = await disc("initialize");
+          const initIx = new TransactionInstruction({
+            programId: PROGRAM_ID,
+            keys: [
+              { pubkey: adminKeypair.publicKey, isSigner: true, isWritable: true },
+              { pubkey: allowlistPda, isSigner: false, isWritable: true },
+              { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+            ],
+            data: Buffer.from(initDisc),
+          });
 
-        const initTx = new Transaction().add(initIx);
-        initTx.feePayer = adminKeypair.publicKey;
-        const { blockhash } = await connection.getLatestBlockhash();
-        initTx.recentBlockhash = blockhash;
-        initTx.sign(adminKeypair);
-        const initSig = await connection.sendRawTransaction(initTx.serialize(), { skipPreflight: false });
-        await connection.confirmTransaction(initSig, "confirmed");
-        console.log("Allowlist initialized:", initSig);
+          const initTx = new Transaction().add(initIx);
+          initTx.feePayer = adminKeypair.publicKey;
+          const { blockhash } = await connection.getLatestBlockhash();
+          initTx.recentBlockhash = blockhash;
+          initTx.sign(adminKeypair);
+          const initSig = await connection.sendRawTransaction(initTx.serialize(), { skipPreflight: true });
+          await connection.confirmTransaction(initSig, "confirmed");
+          console.log("Allowlist initialized:", initSig);
+        } catch (initErr: any) {
+          console.warn("Initialize may have already been done:", initErr.message?.slice(0, 200));
+        }
       }
 
       // Check if wallet is already on the allowlist
