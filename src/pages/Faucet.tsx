@@ -14,7 +14,6 @@ import {
 import {
   connection,
   fetchTokenBalance,
-  requestSolAirdrop,
   COLLATERAL_MINT_PK,
   XUSD_MINT_PK,
   parseProgramError,
@@ -44,30 +43,6 @@ const Faucet = () => {
   useEffect(() => {
     if (publicKey) refreshBalances();
   }, [publicKey]);
-
-  const handleSolAirdrop = async () => {
-    if (!publicKey) return;
-    setLoading("sol");
-    setTxStatus("Requesting SOL airdrop...");
-    try {
-      const sig = await requestSolAirdrop(publicKey);
-      setTxStatus(`Confirmed ✓ 1 SOL airdropped. tx: ${sig.slice(0, 8)}...`);
-      toast.success("1 SOL airdropped!", {
-        description: (
-          <a href={`https://explorer.solana.com/tx/${sig}?cluster=${SOLANA_NETWORK}`} target="_blank" rel="noopener noreferrer" className="underline">
-            View on Explorer →
-          </a>
-        ),
-      });
-      setTimeout(refreshBalances, 2000);
-    } catch (err: any) {
-      const msg = parseProgramError(err);
-      setTxStatus(`Error: ${msg}`);
-      toast.error("Airdrop failed", { description: msg });
-    } finally {
-      setLoading(null);
-    }
-  };
 
   const handleTokenClaim = async (tokenSymbol: string) => {
     if (!publicKey) return;
@@ -151,7 +126,7 @@ const Faucet = () => {
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-primary gold-glow tracking-widest mb-2">DEVNET FAUCET</h1>
           <p className="text-xs text-muted-foreground tracking-wider max-w-md mx-auto">
-            Get free devnet tokens to test AurumX. Every claim sends a real transaction.
+            Get free devnet XAU and xUSD to test AurumX. For SOL, use the official Solana faucet.
           </p>
         </div>
 
@@ -183,32 +158,6 @@ const Faucet = () => {
               <span className="text-primary font-semibold">{balances.xusd.toFixed(2)}</span>
             </div>
           </div>
-        </div>
-
-        {/* SOL Airdrop */}
-        <div className="bg-card border border-card-border rounded-lg p-5 card-glow mb-4">
-          <div className="flex items-start justify-between mb-3">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-lg font-bold text-primary">◎ SOL</span>
-                <span className="text-[10px] text-muted-foreground tracking-wider">DEVNET SOL FOR GAS</span>
-              </div>
-              <p className="text-[11px] text-muted-foreground leading-relaxed max-w-md">
-                You need devnet SOL for transaction fees. This calls Solana's native airdrop.
-              </p>
-            </div>
-            <div className="text-right flex-shrink-0 ml-4">
-              <div className="text-xl font-bold text-primary">1</div>
-              <div className="text-[10px] text-muted-foreground tracking-wider">SOL / claim</div>
-            </div>
-          </div>
-          <button
-            onClick={handleSolAirdrop}
-            disabled={loading === "sol"}
-            className="w-full py-2 text-xs border border-primary text-primary hover:bg-primary hover:text-primary-foreground disabled:opacity-30 transition-colors rounded tracking-wider font-medium"
-          >
-            {loading === "sol" ? "REQUESTING AIRDROP…" : "AIRDROP SOL →"}
-          </button>
         </div>
 
         {/* XAU Token */}
@@ -270,8 +219,8 @@ const Faucet = () => {
           <div className="text-[10px] text-muted-foreground tracking-widest uppercase mb-4">HOW AURUMX WORKS</div>
           <div className="space-y-3 text-[11px] text-muted-foreground leading-relaxed">
             {[
-              "Get devnet SOL — for gas fees. Free from the airdrop above.",
-              "Claim mock XAU — tokenised gold collateral (no real value).",
+              "Get devnet SOL — for gas fees. Use the official Solana faucet.",
+              "Claim devnet XAU — tokenised gold collateral for testing vault flows.",
               "Deposit XAU into vault — locks gold on-chain, your wallet signs the tx.",
               "Mint xUSD — protocol mints gold-backed stablecoins at 150% collateral ratio.",
               "Burn xUSD to reclaim gold — your wallet signs, the vault releases XAU.",

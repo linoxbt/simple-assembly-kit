@@ -13,7 +13,7 @@ interface HeaderProps {
 }
 
 const Header = ({ xauPrice, priceSource, activeTab, onTabChange }: HeaderProps) => {
-  const { connected, publicKey, disconnect } = useWallet();
+  const { connected, publicKey } = useWallet();
   const { setVisible } = useWalletModal();
   const navigate = useNavigate();
   const location = useLocation();
@@ -27,11 +27,7 @@ const Header = ({ xauPrice, priceSource, activeTab, onTabChange }: HeaderProps) 
     : ["VAULT", "EXPLORER", "FAUCET"];
 
   const handleWalletClick = () => {
-    if (connected) {
-      disconnect();
-    } else {
-      setVisible(true);
-    }
+    setVisible(true);
   };
 
   const shortAddress = publicKey
@@ -57,11 +53,6 @@ const Header = ({ xauPrice, priceSource, activeTab, onTabChange }: HeaderProps) 
           <ThemeToggle />
 
           <div className="flex items-center gap-2">
-            {connected && isAdmin && (
-              <span className="text-[10px] px-2 py-0.5 border border-primary/50 text-primary/80 rounded tracking-wider">
-                ADMIN
-              </span>
-            )}
             <button
               onClick={handleWalletClick}
               className="px-4 py-1.5 text-xs border border-primary text-primary hover:bg-primary hover:text-primary-foreground transition-colors rounded tracking-wider font-medium"
