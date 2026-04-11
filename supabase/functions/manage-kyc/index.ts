@@ -127,14 +127,25 @@ Deno.serve(async (req) => {
 
           const initTx = new Transaction().add(initIx);
           initTx.feePayer = adminKeypair.publicKey;
-          const { blockhash } = await connection.getLatestBlockhash();
-          initTx.recentBlockhash = blockhash;
+          const latestBh = await connection.getLatestBlockhash();
+          initTx.recentBlockhash = latestBh.blockhash;
           initTx.sign(adminKeypair);
           const initSig = await connection.sendRawTransaction(initTx.serialize(), { skipPreflight: true });
-          await connection.confirmTransaction(initSig, "confirmed");
+          console.log("Initialize tx sent:", initSig);
+          await connection.confirmTransaction({ signature: initSig, ...latestBh }, "confirmed");
           console.log("Allowlist initialized:", initSig);
+          // Wait a moment for the account to be queryable
+          await new Promise(r => setTimeout(r, 2000));
         } catch (initErr: any) {
-          console.warn("Initialize may have already been done:", initErr.message?.slice(0, 200));
+          console.error("Initialize failed:", initErr.message?.slice(0, 500));
+          // If init truly failed, we can't proceed
+          const checkInfo = await connection.getAccountInfo(allowlistPda);
+          if (!checkInfo) {
+            return new Response(
+              JSON.stringify({ error: "Allowlist PDA not initialized. Run 'initialize' from Solana Playground first.", details: initErr.message }),
+              { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+            );
+          }
         }
       }
 
