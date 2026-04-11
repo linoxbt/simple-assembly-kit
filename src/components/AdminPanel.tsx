@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useProtocolStore } from "@/stores/protocolStore";
+import { useKycSetting } from "@/hooks/useKycSetting";
 import { AML_REASONS, AmlReason } from "@/utils/constants";
 import { shortenAddress } from "@/utils/format";
 import { toast } from "sonner";
@@ -9,6 +10,7 @@ const AdminPanel = () => {
   const { publicKey } = useWallet();
   const walletAddress = publicKey?.toBase58() ?? "";
   const isAdmin = useProtocolStore((s) => s.isAdmin(walletAddress));
+  const { kycEnabled, toggleKyc } = useKycSetting();
 
   const {
     adminWallets, addAdmin, removeAdmin,
@@ -23,6 +25,7 @@ const AdminPanel = () => {
   const [amlScoreVal, setAmlScoreVal] = useState(25);
   const [amlReason, setAmlReason] = useState<AmlReason>("CLEAN");
   const [loading, setLoading] = useState<string | null>(null);
+  const [togglingKyc, setTogglingKyc] = useState(false);
 
   if (!isAdmin) {
     return (
@@ -32,6 +35,23 @@ const AdminPanel = () => {
       </div>
     );
   }
+
+  const handleToggleKyc = async () => {
+    setTogglingKyc(true);
+    try {
+      const newState = !kycEnabled;
+      const result = await toggleKyc(newState, walletAddress);
+      if (result.success) {
+        toast.success(`KYC gate ${newState ? "enabled" : "disabled"}`);
+      } else {
+        toast.error("Failed to toggle KYC", { description: result.error });
+      }
+    } catch (err: any) {
+      toast.error("Failed", { description: err.message });
+    } finally {
+      setTogglingKyc(false);
+    }
+  };
 
   const handleAddToAllowlist = async () => {
     if (!newAddress.trim()) return;
@@ -76,6 +96,31 @@ const AdminPanel = () => {
 
   return (
     <div className="space-y-4">
+      {/* KYC Toggle */}
+      <div className="bg-card border border-primary/30 rounded-lg p-4 card-glow">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-[10px] text-muted-foreground tracking-widest uppercase mb-1">KYC Gate Control</div>
+            <p className="text-xs text-muted-foreground">
+              {kycEnabled
+                ? "KYC is ENABLED — only allowlisted wallets can transact."
+                : "KYC is DISABLED — all wallets can transact freely."}
+            </p>
+          </div>
+          <button
+            onClick={handleToggleKyc}
+            disabled={togglingKyc}
+            className={`px-6 py-2 text-xs border rounded tracking-wider font-medium transition-colors disabled:opacity-30 ${
+              kycEnabled
+                ? "border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                : "border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+            }`}
+          >
+            {togglingKyc ? "UPDATING…" : kycEnabled ? "DISABLE KYC" : "ENABLE KYC"}
+          </button>
+        </div>
+      </div>
+
       {/* Allowlist Requests */}
       {pendingRequests.length > 0 && (
         <div className="bg-card border border-primary/30 rounded-lg p-4 card-glow">
@@ -215,7 +260,11 @@ const AdminPanel = () => {
             </tr>
           </thead>
           <tbody className="text-foreground">
-            <tr className="border-b border-card-border/50"><td className="py-2 pr-4">KYC</td><td className="py-2 pr-4">All transactions</td><td className="py-2">Database allowlist check</td></tr>
+            <tr className="border-b border-card-border/50">
+              <td className="py-2 pr-4">KYC</td>
+              <td className="py-2 pr-4">All transactions</td>
+              <td className="py-2">{kycEnabled ? "Database allowlist check + on-chain" : "DISABLED by admin"}</td>
+            </tr>
             <tr className="border-b border-card-border/50"><td className="py-2 pr-4">AML</td><td className="py-2 pr-4">Score &gt;70/100</td><td className="py-2">Block at application level</td></tr>
             <tr className="border-b border-card-border/50"><td className="py-2 pr-4">KYT</td><td className="py-2 pr-4">All txns, flag $10k</td><td className="py-2">Log KytEvent to database</td></tr>
             <tr><td className="py-2 pr-4">Travel Rule</td><td className="py-2 pr-4">Transfers ≥$3,000</td><td className="py-2">Require VASP fields + PDA record</td></tr>

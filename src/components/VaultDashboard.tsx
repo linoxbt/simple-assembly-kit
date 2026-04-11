@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { useWalletModal } from "@solana/wallet-adapter-react-ui";
 import MetricCard from "@/components/MetricCard";
@@ -12,6 +12,7 @@ import PriceHistoryChart from "@/components/PriceHistoryChart";
 import AllowlistRequestButton from "@/components/AllowlistRequestButton";
 import { useProtocolStore } from "@/stores/protocolStore";
 import { useVaultNotifications } from "@/hooks/useVaultNotifications";
+import { useKycSetting } from "@/hooks/useKycSetting";
 import { VaultState } from "@/hooks/useVault";
 import { formatUsd, formatOz, formatRatio } from "@/utils/format";
 import { TRAVEL_RULE_THRESHOLD, KYT_FLAG_THRESHOLD, SOLANA_NETWORK } from "@/utils/constants";
@@ -25,6 +26,30 @@ interface VaultDashboardProps {
   onRefresh?: () => void;
 }
 
+/**
+ * Ensure wallet is on on-chain allowlist (called when KYC is disabled).
+ */
+async function ensureOnChainAllowlist(wallet: string): Promise<boolean> {
+  try {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    const res = await fetch(`${supabaseUrl}/functions/v1/manage-kyc`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${supabaseKey}`,
+        apikey: supabaseKey,
+      },
+      body: JSON.stringify({ action: "ensure_allowlist", wallet }),
+    });
+    const result = await res.json();
+    return result.success === true;
+  } catch (err) {
+    console.error("ensureOnChainAllowlist failed:", err);
+    return false;
+  }
+}
+
 const VaultDashboard = ({ vault, prices, onRefresh }: VaultDashboardProps) => {
   const { publicKey, signTransaction, connected } = useWallet();
   const { setVisible } = useWalletModal();
@@ -32,6 +57,7 @@ const VaultDashboard = ({ vault, prices, onRefresh }: VaultDashboardProps) => {
   const addTransaction = useProtocolStore((s) => s.addTransaction);
   const addKytEvent = useProtocolStore((s) => s.addKytEvent);
   const transactions = useProtocolStore((s) => s.transactions);
+  const { kycEnabled } = useKycSetting();
 
   useVaultNotifications(vault, connected);
 
@@ -40,6 +66,19 @@ const VaultDashboard = ({ vault, prices, onRefresh }: VaultDashboardProps) => {
   const [burnUsd, setBurnUsd] = useState("");
   const [txStatus, setTxStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
+  const [allowlistEnsured, setAllowlistEnsured] = useState(false);
+
+  // When KYC is disabled, auto-add wallet to on-chain allowlist
+  useEffect(() => {
+    if (!kycEnabled && publicKey && !allowlistEnsured) {
+      ensureOnChainAllowlist(publicKey.toBase58()).then((ok) => {
+        if (ok) setAllowlistEnsured(true);
+      });
+    }
+  }, [kycEnabled, publicKey, allowlistEnsured]);
+
+  // User can transact if: KYC disabled (and ensured on-chain) OR KYC verified
+  const canTransact = !kycEnabled ? allowlistEnsured : vault.isKycVerified;
 
   const mintAmount = parseFloat(mintUsd) || 0;
   const showTravelRule = mintAmount >= TRAVEL_RULE_THRESHOLD;
@@ -290,17 +329,30 @@ const VaultDashboard = ({ vault, prices, onRefresh }: VaultDashboardProps) => {
       )}
 
       {/* KYC Status */}
-      {vault.isKycVerified ? (
-        <div className="text-xs tracking-wider text-center py-2 rounded border border-primary/40 text-primary bg-primary/5">
-          ✓ KYC VERIFIED — WALLET ON ALLOWLIST
-        </div>
-      ) : (
-        <>
-          <AllowlistRequestButton />
-          <div className="text-xs tracking-wider text-center py-2 rounded border border-destructive/40 text-destructive bg-destructive/5">
-            ✗ KYC NOT VERIFIED — REQUEST ALLOWLIST ACCESS ABOVE
+      {kycEnabled ? (
+        vault.isKycVerified ? (
+          <div className="text-xs tracking-wider text-center py-2 rounded border border-primary/40 text-primary bg-primary/5">
+            ✓ KYC VERIFIED — WALLET ON ALLOWLIST
           </div>
-        </>
+        ) : (
+          <>
+            <AllowlistRequestButton />
+            <div className="text-xs tracking-wider text-center py-2 rounded border border-destructive/40 text-destructive bg-destructive/5">
+              ✗ KYC NOT VERIFIED — REQUEST ALLOWLIST ACCESS ABOVE
+            </div>
+          </>
+        )
+      ) : (
+        <div className="text-xs tracking-wider text-center py-2 rounded border border-primary/40 text-primary bg-primary/5">
+          ✓ KYC GATE DISABLED — ALL WALLETS CAN TRANSACT
+        </div>
+      )}
+
+      {/* Auto-adding to allowlist status */}
+      {!kycEnabled && !allowlistEnsured && (
+        <div className="text-xs tracking-wider text-center py-2 rounded border border-accent/40 text-accent bg-accent/5">
+          ⏳ SETTING UP ON-CHAIN ACCESS...
+        </div>
       )}
 
       {/* Token Balances */}
@@ -356,7 +408,7 @@ const VaultDashboard = ({ vault, prices, onRefresh }: VaultDashboardProps) => {
             <div className="text-[10px] text-muted-foreground tracking-widest uppercase mb-3">Deposit XAU Collateral</div>
             <div className="flex gap-2">
               <input type="number" placeholder="oz" value={depositOz} onChange={(e) => setDepositOz(e.target.value)} className="flex-1 bg-surface border border-card-border rounded px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
-              <button onClick={handleDeposit} disabled={loading === "deposit" || !vault.isKycVerified} className="px-6 py-2 text-xs border border-primary text-primary hover:bg-primary hover:text-primary-foreground disabled:opacity-30 transition-colors rounded tracking-wider font-medium">
+              <button onClick={handleDeposit} disabled={loading === "deposit" || !canTransact} className="px-6 py-2 text-xs border border-primary text-primary hover:bg-primary hover:text-primary-foreground disabled:opacity-30 transition-colors rounded tracking-wider font-medium">
                 {loading === "deposit" ? "AWAITING WALLET…" : "DEPOSIT →"}
               </button>
             </div>
@@ -367,7 +419,7 @@ const VaultDashboard = ({ vault, prices, onRefresh }: VaultDashboardProps) => {
             <div className="text-[10px] text-muted-foreground tracking-widest uppercase mb-3">Mint xUSD</div>
             <div className="flex gap-2">
               <input type="number" placeholder="USD" value={mintUsd} onChange={(e) => setMintUsd(e.target.value)} className="flex-1 bg-surface border border-card-border rounded px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
-              <button onClick={handleMint} disabled={showTravelRule || loading === "mint" || !vault.isKycVerified || vault.priceIsStale || vault.priceNotInitialized} className="px-6 py-2 text-xs border border-primary text-primary hover:bg-primary hover:text-primary-foreground disabled:opacity-30 transition-colors rounded tracking-wider font-medium">
+              <button onClick={handleMint} disabled={showTravelRule || loading === "mint" || !canTransact || vault.priceIsStale || vault.priceNotInitialized} className="px-6 py-2 text-xs border border-primary text-primary hover:bg-primary hover:text-primary-foreground disabled:opacity-30 transition-colors rounded tracking-wider font-medium">
                 {loading === "mint" ? "AWAITING WALLET…" : "MINT →"}
               </button>
             </div>
@@ -379,7 +431,7 @@ const VaultDashboard = ({ vault, prices, onRefresh }: VaultDashboardProps) => {
             <div className="text-[10px] text-muted-foreground tracking-widest uppercase mb-3">Burn xUSD / Reclaim Collateral</div>
             <div className="flex gap-2">
               <input type="number" placeholder="xUSD" value={burnUsd} onChange={(e) => setBurnUsd(e.target.value)} className="flex-1 bg-surface border border-card-border rounded px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
-              <button onClick={handleBurn} disabled={loading === "burn" || !vault.isKycVerified} className="px-6 py-2 text-xs border border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground disabled:opacity-30 transition-colors rounded tracking-wider font-medium">
+              <button onClick={handleBurn} disabled={loading === "burn" || !canTransact} className="px-6 py-2 text-xs border border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground disabled:opacity-30 transition-colors rounded tracking-wider font-medium">
                 {loading === "burn" ? "AWAITING WALLET…" : "BURN →"}
               </button>
             </div>
@@ -390,7 +442,7 @@ const VaultDashboard = ({ vault, prices, onRefresh }: VaultDashboardProps) => {
 
         <div className="space-y-4">
           <ComplianceStatusPanel
-            isKycVerified={vault.isKycVerified}
+            isKycVerified={canTransact}
             xauPrice={vault.xauPriceUsd}
             xagPrice={0}
             priceSource={vault.priceFromSix ? "SIX (On-Chain)" : "Pyth"}
