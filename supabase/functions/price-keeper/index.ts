@@ -23,8 +23,8 @@ const corsHeaders = {
 const PROGRAM_ID = new PublicKey("7YWWyNwtHSKHoxNm5fw2Sh73QRcFPUzCQ7qntJM7HgnG");
 const RPC_URL = "https://api.devnet.solana.com";
 
-// SIX BFI Financial Data API
-const SIX_BFI_API_URL = "https://web-api.six-group.com/api/findata/v1";
+// SIX Financial Information API (certificate-based auth)
+const SIX_API_URL = "https://web-api.six-group.com/api/findata/v1";
 
 // Pyth Hermes fallback
 const PYTH_XAU_FEED = "0x765d2ba906dbc32ca17cc11f5310a89e9ee1f6420508c63861f2f8ba4ee34bb2";
