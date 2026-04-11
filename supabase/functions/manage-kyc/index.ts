@@ -132,7 +132,10 @@ Deno.serve(async (req) => {
           initTx.sign(adminKeypair);
           const initSig = await connection.sendRawTransaction(initTx.serialize(), { skipPreflight: true });
           console.log("Initialize tx sent:", initSig);
-          await connection.confirmTransaction({ signature: initSig, ...latestBh }, "confirmed");
+          const initConfirm = await connection.confirmTransaction({ signature: initSig, ...latestBh }, "confirmed");
+          if (initConfirm.value.err) {
+            throw new Error(`Allowlist initialize transaction failed: ${JSON.stringify(initConfirm.value.err)}`);
+          }
           console.log("Allowlist initialized:", initSig);
           // Wait a moment for the account to be queryable
           await new Promise(r => setTimeout(r, 2000));
@@ -193,7 +196,10 @@ Deno.serve(async (req) => {
       addTx.sign(adminKeypair);
       const addSig = await connection.sendRawTransaction(addTx.serialize(), { skipPreflight: true });
       const latestBh2 = await connection.getLatestBlockhash();
-      await connection.confirmTransaction({ signature: addSig, ...latestBh2 }, "confirmed");
+      const addConfirm = await connection.confirmTransaction({ signature: addSig, ...latestBh2 }, "confirmed");
+      if (addConfirm.value.err) {
+        throw new Error(`Allowlist add transaction failed: ${JSON.stringify(addConfirm.value.err)}`);
+      }
 
       // Also add to database allowlist
       await supabase.from("allowlist").upsert(

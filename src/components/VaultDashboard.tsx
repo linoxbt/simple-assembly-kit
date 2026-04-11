@@ -16,7 +16,7 @@ import { useKycSetting } from "@/hooks/useKycSetting";
 import { VaultState } from "@/hooks/useVault";
 import { formatUsd, formatOz, formatRatio } from "@/utils/format";
 import { TRAVEL_RULE_THRESHOLD, KYT_FLAG_THRESHOLD, SOLANA_NETWORK } from "@/utils/constants";
-import { depositCollateral, mintXusd, burnXusd, parseProgramError } from "@/services/anchorProgram";
+import { depositCollateral, mintXusd, burnXusd, parseProgramError, fetchAllowlistAccount } from "@/services/anchorProgram";
 import TravelRulePanel from "@/components/TravelRulePanel";
 import { toast } from "sonner";
 
@@ -27,10 +27,32 @@ interface VaultDashboardProps {
 }
 
 /**
+ * Check whether the wallet actually has on-chain access.
+ */
+async function getOnChainAccessStatus(wallet: string): Promise<{ ok: boolean; message?: string }> {
+  const allowlist = await fetchAllowlistAccount();
+
+  if (!allowlist) {
+    return {
+      ok: false,
+      message: "Protocol access list is not initialized on-chain yet. Deposit, mint, and burn are temporarily unavailable.",
+    };
+  }
+
+  const isMember = allowlist.members.some((member) => member.toBase58() === wallet);
+  return isMember
+    ? { ok: true }
+    : { ok: false, message: "This wallet is not on the on-chain access list yet." };
+}
+
+/**
  * Ensure wallet is on on-chain allowlist (called when KYC is disabled).
  */
-async function ensureOnChainAllowlist(wallet: string): Promise<boolean> {
+async function ensureOnChainAllowlist(wallet: string): Promise<{ ok: boolean; message?: string }> {
   try {
+    const currentStatus = await getOnChainAccessStatus(wallet);
+    if (currentStatus.ok) return currentStatus;
+
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
     const res = await fetch(`${supabaseUrl}/functions/v1/manage-kyc`, {
@@ -43,10 +65,14 @@ async function ensureOnChainAllowlist(wallet: string): Promise<boolean> {
       body: JSON.stringify({ action: "ensure_allowlist", wallet }),
     });
     const result = await res.json();
-    return result.success === true;
+    if (!res.ok || result.success !== true) {
+      return { ok: false, message: result.error ?? "Failed to provision on-chain access." };
+    }
+
+    return await getOnChainAccessStatus(wallet);
   } catch (err) {
     console.error("ensureOnChainAllowlist failed:", err);
-    return false;
+    return { ok: false, message: "Failed to provision on-chain access." };
   }
 }
 
@@ -67,15 +93,30 @@ const VaultDashboard = ({ vault, prices, onRefresh }: VaultDashboardProps) => {
   const [txStatus, setTxStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState<string | null>(null);
   const [allowlistEnsured, setAllowlistEnsured] = useState(false);
+  const [allowlistError, setAllowlistError] = useState<string | null>(null);
 
   // When KYC is disabled, auto-add wallet to on-chain allowlist
   useEffect(() => {
-    if (!kycEnabled && publicKey && !allowlistEnsured) {
-      ensureOnChainAllowlist(publicKey.toBase58()).then((ok) => {
-        if (ok) setAllowlistEnsured(true);
-      });
+    if (!publicKey || kycEnabled) {
+      setAllowlistEnsured(false);
+      setAllowlistError(null);
+      return;
     }
-  }, [kycEnabled, publicKey, allowlistEnsured]);
+
+    let active = true;
+    setAllowlistEnsured(false);
+    setAllowlistError(null);
+
+    ensureOnChainAllowlist(publicKey.toBase58()).then((status) => {
+      if (!active) return;
+      setAllowlistEnsured(status.ok);
+      setAllowlistError(status.ok ? null : status.message ?? "Failed to provision on-chain access.");
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [kycEnabled, publicKey]);
 
   // User can transact if: KYC disabled (and ensured on-chain) OR KYC verified
   const canTransact = !kycEnabled ? allowlistEnsured : vault.isKycVerified;
@@ -85,6 +126,19 @@ const VaultDashboard = ({ vault, prices, onRefresh }: VaultDashboardProps) => {
 
   const explorerTxUrl = (sig: string) =>
     `https://explorer.solana.com/tx/${sig}?cluster=${SOLANA_NETWORK}`;
+
+  const ensureWalletHasOnChainAccess = useCallback(async () => {
+    if (!walletAddress) return false;
+
+    const status = await getOnChainAccessStatus(walletAddress);
+    if (status.ok) return true;
+
+    const message = status.message ?? "On-chain access is unavailable.";
+    setAllowlistError(message);
+    setTxStatus(`Error: ${message}`);
+    toast.error("Transaction unavailable", { description: message });
+    return false;
+  }, [walletAddress]);
 
   const recordAction = async (
     type: "deposit" | "mint" | "burn",
@@ -119,6 +173,7 @@ const VaultDashboard = ({ vault, prices, onRefresh }: VaultDashboardProps) => {
     }
     const oz = parseFloat(depositOz);
     if (!oz || oz <= 0) return;
+    if (!(await ensureWalletHasOnChainAccess())) return;
     setLoading("deposit");
     setTxStatus("Waiting for wallet approval...");
     try {
@@ -154,6 +209,7 @@ const VaultDashboard = ({ vault, prices, onRefresh }: VaultDashboardProps) => {
       return;
     }
     if (!mintAmount || mintAmount <= 0) return;
+    if (!(await ensureWalletHasOnChainAccess())) return;
     setLoading("mint");
     setTxStatus("Waiting for wallet approval...");
     try {
@@ -190,6 +246,7 @@ const VaultDashboard = ({ vault, prices, onRefresh }: VaultDashboardProps) => {
     }
     const usd = parseFloat(burnUsd);
     if (!usd || usd <= 0) return;
+    if (!(await ensureWalletHasOnChainAccess())) return;
     setLoading("burn");
     setTxStatus("Waiting for wallet approval...");
     try {
@@ -344,14 +401,21 @@ const VaultDashboard = ({ vault, prices, onRefresh }: VaultDashboardProps) => {
         )
       ) : (
         <div className="text-xs tracking-wider text-center py-2 rounded border border-primary/40 text-primary bg-primary/5">
-          ✓ KYC GATE DISABLED — ALL WALLETS CAN TRANSACT
+          {allowlistEnsured
+            ? "✓ KYC GATE DISABLED — THIS WALLET HAS ON-CHAIN ACCESS"
+            : "KYC GATE DISABLED — APP IS PROVISIONING REQUIRED ON-CHAIN ACCESS"}
         </div>
       )}
 
       {/* Auto-adding to allowlist status */}
-      {!kycEnabled && !allowlistEnsured && (
+      {!kycEnabled && !allowlistEnsured && !allowlistError && (
         <div className="text-xs tracking-wider text-center py-2 rounded border border-accent/40 text-accent bg-accent/5">
           ⏳ SETTING UP ON-CHAIN ACCESS...
+        </div>
+      )}
+      {!kycEnabled && !allowlistEnsured && allowlistError && (
+        <div className="text-xs tracking-wider text-center py-2 rounded border border-destructive/40 text-destructive bg-destructive/5">
+          ✗ {allowlistError}
         </div>
       )}
 

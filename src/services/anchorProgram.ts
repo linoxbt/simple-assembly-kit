@@ -48,11 +48,28 @@ const ERROR_MAP: Record<string, string> = {
 };
 
 export function parseProgramError(err: any): string {
-  const msg = err?.message || err?.toString() || "";
+  const msg = [
+    err?.message,
+    err?.error?.message,
+    err?.cause?.message,
+    typeof err?.toString === "function" ? err.toString() : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   // Check for Anchor error codes
   for (const [name, friendly] of Object.entries(ERROR_MAP)) {
     if (msg.includes(name)) return friendly;
   }
+
+  if (msg.includes("AccountNotInitialized") && msg.toLowerCase().includes("allowlist")) {
+    return "Protocol access list is not initialized on-chain yet. Deposit, mint, and burn are temporarily unavailable.";
+  }
+
+  if (msg.includes("WalletSignTransactionError") || msg.includes("Cancelled") || msg.includes("User rejected")) {
+    return "Transaction was cancelled in your wallet.";
+  }
+
   // Check hex error codes
   const hexMatch = msg.match(/0x(1[7-9][0-9a-f]{2})/i);
   if (hexMatch) {
@@ -63,8 +80,7 @@ export function parseProgramError(err: any): string {
       return ERROR_MAP[errorNames[anchorCode]];
     }
   }
-  if (msg.includes("User rejected")) return "You rejected the transaction in your wallet.";
-  if (msg.includes("0x1")) return "Not enough SOL for gas. Get devnet SOL from the Faucet.";
+  if (msg.includes("0x1")) return "Not enough SOL for gas. Get devnet SOL from the official Solana faucet.";
   if (msg.includes("AccountNotFound") || msg.includes("could not find account"))
     return "Token account not found. Use the Faucet to set up your account.";
   if (msg.includes("fetch") || msg.includes("network") || msg.includes("ECONNREFUSED"))
