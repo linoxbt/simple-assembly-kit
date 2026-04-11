@@ -191,8 +191,9 @@ Deno.serve(async (req) => {
       const { blockhash: bh2 } = await connection.getLatestBlockhash();
       addTx.recentBlockhash = bh2;
       addTx.sign(adminKeypair);
-      const addSig = await connection.sendRawTransaction(addTx.serialize(), { skipPreflight: false });
-      await connection.confirmTransaction(addSig, "confirmed");
+      const addSig = await connection.sendRawTransaction(addTx.serialize(), { skipPreflight: true });
+      const latestBh2 = await connection.getLatestBlockhash();
+      await connection.confirmTransaction({ signature: addSig, ...latestBh2 }, "confirmed");
 
       // Also add to database allowlist
       await supabase.from("allowlist").upsert(
