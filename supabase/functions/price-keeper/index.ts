@@ -60,49 +60,71 @@ function encodeI64(val: bigint): Uint8Array {
 }
 
 /**
- * Try fetching XAU/USD from SIX BFI Financial Data API.
- * SIX provides institutional-grade precious metals pricing.
+ * Fetch XAU/USD from SIX Financial Information API.
+ * Uses certificate CN + password for Basic Auth.
  */
 async function fetchSixBfiPrice(): Promise<{ price: number; source: string } | null> {
   try {
-    const sixApiKey = Deno.env.get("SIX_BFI_API_KEY");
+    const sixCn = Deno.env.get("SIX_CN");
+    const sixPassword = Deno.env.get("SIX_PASSWORD");
     
-    // SIX BFI listings endpoint for gold spot price
-    const url = `${SIX_BFI_API_URL}/listings/marketData?scheme=VALOR_BC&ids=XAU`;
-    const headers: Record<string, string> = {
-      "Accept": "application/json",
-    };
-    if (sixApiKey) {
-      headers["X-Api-Key"] = sixApiKey;
+    if (!sixCn || !sixPassword) {
+      console.warn("SIX credentials not configured (SIX_CN / SIX_PASSWORD)");
+      return null;
     }
 
-    const res = await fetch(url, { headers, signal: AbortSignal.timeout(5000) });
+    // SIX uses Basic Auth with CN:password
+    const basicAuth = btoa(`${sixCn}:${sixPassword}`);
+    
+    // Query XAU/USD spot price via listings endpoint
+    const url = `${SIX_API_URL}/listings/marketData?scheme=ISIN&ids=XC0009655157`;
+    const res = await fetch(url, {
+      headers: {
+        "Accept": "application/json",
+        "Authorization": `Basic ${basicAuth}`,
+      },
+      signal: AbortSignal.timeout(8000),
+    });
+
     if (!res.ok) {
-      console.warn(`SIX BFI API returned ${res.status}`);
+      const body = await res.text().catch(() => "");
+      console.warn(`SIX API returned ${res.status}: ${body}`);
       return null;
     }
 
     const data = await res.json();
-    // SIX returns listings with lastPrice or officialClose
+    console.log("SIX API response keys:", JSON.stringify(Object.keys(data)));
+
+    // Navigate SIX response structure
     const listing = data?.data?.listings?.[0];
     if (!listing) {
-      console.warn("SIX BFI: no listing data returned");
+      // Try alternative response shapes
+      const altListing = data?.listings?.[0] ?? data?.[0];
+      if (altListing) {
+        const price = altListing.lastPrice?.value ?? altListing.closingPrice?.value ?? altListing.price;
+        if (price && price > 0) {
+          console.log(`SIX XAU/USD (alt): $${price}`);
+          return { price: Number(price), source: "SIX BFI" };
+        }
+      }
+      console.warn("SIX: no listing data found, full response:", JSON.stringify(data).slice(0, 500));
       return null;
     }
 
-    const price = listing.marketData?.lastPrice?.value 
+    const price = listing.marketData?.lastPrice?.value
       ?? listing.marketData?.officialClose?.value
+      ?? listing.marketData?.closingPrice?.value
       ?? null;
 
     if (!price || price <= 0) {
-      console.warn("SIX BFI: no valid price in response");
+      console.warn("SIX: no valid price in listing:", JSON.stringify(listing.marketData).slice(0, 300));
       return null;
     }
 
-    console.log(`SIX BFI XAU/USD: $${price}`);
+    console.log(`SIX XAU/USD: $${price}`);
     return { price: Number(price), source: "SIX BFI" };
   } catch (err) {
-    console.warn("SIX BFI fetch failed:", err);
+    console.warn("SIX fetch failed:", err);
     return null;
   }
 }
