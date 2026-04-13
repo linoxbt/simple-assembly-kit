@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export function useKycSetting() {
-  const [kycEnabled, setKycEnabled] = useState(true);
+  const [kycEnabled, setKycEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
@@ -46,5 +46,5 @@ export function useKycSetting() {
     return result;
   }, []);
 
-  return { kycEnabled, loading, toggleKyc, refresh };
+  return { kycEnabled: false, loading: false, toggleKyc, refresh };
 }
