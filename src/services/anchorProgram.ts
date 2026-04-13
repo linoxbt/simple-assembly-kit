@@ -23,12 +23,15 @@ import {
   COLLATERAL_MINT,
   XUSD_MINT,
   TOKEN_DECIMALS,
+  TOKEN_2022_PROGRAM_ID as TOKEN_2022_ID_STR,
 } from "@/utils/constants";
+import { Buffer } from "buffer";
 
 // ─── Public Keys ─────────────────────────────────────────
 export const PROGRAM_ID = new PublicKey(AURUMX_PROGRAM_ID);
 export const COLLATERAL_MINT_PK = new PublicKey(COLLATERAL_MINT);
 export const XUSD_MINT_PK = new PublicKey(XUSD_MINT);
+export const TOKEN_2022_PROGRAM_ID = new PublicKey(TOKEN_2022_ID_STR);
 export const connection = new Connection(RPC_URL, "confirmed");
 
 // ─── Error mapping ───────────────────────────────────────
@@ -128,7 +131,7 @@ export function deriveTravelRulePda(transferId: Uint8Array): [PublicKey, number]
 
 // ─── ATA Helper ──────────────────────────────────────────
 export function getAta(owner: PublicKey, mint: PublicKey, allowOwnerOffCurve = false): PublicKey {
-  return getAssociatedTokenAddressSync(mint, owner, allowOwnerOffCurve, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID);
+  return getAssociatedTokenAddressSync(mint, owner, allowOwnerOffCurve, TOKEN_2022_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID);
 }
 
 // ─── Anchor Discriminator ────────────────────────────────
@@ -259,7 +262,7 @@ export async function fetchAllowlistAccount(): Promise<OnChainAllowList | null> 
 export async function fetchTokenBalance(owner: PublicKey, mint: PublicKey): Promise<number> {
   try {
     const ata = getAta(owner, mint);
-    const account = await getAccount(connection, ata, "confirmed", TOKEN_PROGRAM_ID);
+    const account = await getAccount(connection, ata, "confirmed", TOKEN_2022_PROGRAM_ID);
     return Number(account.amount) / 1_000_000;
   } catch {
     return 0;
@@ -281,12 +284,16 @@ async function sendTx(
 ): Promise<VaultActionResult> {
   const tx = new Transaction().add(ix);
   tx.feePayer = walletPk;
-  const { blockhash } = await connection.getLatestBlockhash();
+  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
   tx.recentBlockhash = blockhash;
   const signed = await signTransaction(tx);
   const rawTx = signed.serialize();
   const txSig = await connection.sendRawTransaction(rawTx, { skipPreflight: false });
-  await connection.confirmTransaction(txSig, "confirmed");
+  await connection.confirmTransaction({
+    signature: txSig,
+    blockhash,
+    lastValidBlockHeight
+  }, "confirmed");
   return { success: true, txSignature: txSig };
 }
 
@@ -318,7 +325,7 @@ export async function depositCollateral(
         { pubkey: ownerCollAta, isSigner: false, isWritable: true },
         { pubkey: vaultCollAta, isSigner: false, isWritable: true },
         { pubkey: COLLATERAL_MINT_PK, isSigner: false, isWritable: false },
-        { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+        { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
       data,
@@ -360,7 +367,7 @@ export async function mintXusd(
         { pubkey: XUSD_MINT_PK, isSigner: false, isWritable: true },
         { pubkey: ownerXusdAta, isSigner: false, isWritable: true },
         { pubkey: mintAuthority, isSigner: false, isWritable: false },
-        { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+        { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
       data,
@@ -404,7 +411,7 @@ export async function burnXusd(
         { pubkey: ownerCollAta, isSigner: false, isWritable: true },
         { pubkey: COLLATERAL_MINT_PK, isSigner: false, isWritable: false },
         { pubkey: vaultPda, isSigner: false, isWritable: false }, // vaultSigner = vaultPda
-        { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+        { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
       data,
